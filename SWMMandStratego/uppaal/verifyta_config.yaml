@@ -1,0 +1,9 @@
+learning-method: 4
+good-runs: 10
+total-runs: 20
+runs-pr-state: 5
+eval-runs: 5
+discretization: 0.5
+filter: 2
+nosummary:
+silence-progress:
