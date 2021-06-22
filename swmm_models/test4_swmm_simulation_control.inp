@@ -173,7 +173,6 @@ storage_curve3   Storage    1.355      1550
 [TIMESERIES]
 ;;Name           Date       Time       Value     
 ;;-------------- ---------- ---------- ----------
-100year          FILE "C:\SWMM\rain_swmm.dat"
 ;
 long_term_rainfallgauge5061 FILE "C:\SWMM\swmm_5061.dat"
 
