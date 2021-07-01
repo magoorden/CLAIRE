@@ -187,13 +187,13 @@ class MPCSetupPond(sutil.SafeMPCSetup):
 
 if __name__ == "__main__":
     # Define location of the relevant files and commands.
-    model_template_path = "uppaal/pond_ADHS_external_weather_online.xml"
-    query_file_path = "uppaal/pond_ADHS_query.q"
-    model_config_path = "uppaal/model_config.yaml"
-    learning_config_path = "uppaal/verifyta_config.yaml"
-    historical_rain_data_path = "uppaal/Rain_Ts.txt"
-    weather_forecast_path = "uppaal/weather_forecast.csv"
-    output_file_path = "uppaal/result.txt"
+    model_template_path = "../uppaal/pond_ADHS_external_weather_online.xml"
+    query_file_path = "../uppaal/pond_ADHS_query.q"
+    model_config_path = "../uppaal/model_config.yaml"
+    learning_config_path = "../uppaal/verifyta_config.yaml"
+    historical_rain_data_path = "../uppaal/Rain_Ts.txt"
+    weather_forecast_path = "../uppaal/weather_forecast.csv"
+    output_file_path = "../uppaal/result.txt"
     verifyta_command = "verifyta-stratego-8-7"
 
     # Whether to run in debug mode.
