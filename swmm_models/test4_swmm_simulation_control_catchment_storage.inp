@@ -111,16 +111,16 @@ C5               J5               OF1              100        0.01       0      
 [ORIFICES]
 ;;Name           From Node        To Node          Type         Offset     Qcoeff     Gated    CloseTime 
 ;;-------------- ---------------- ---------------- ------------ ---------- ---------- -------- ----------
-OR1              SU1              J2               SIDE         0          0.65       NO       0         
-OR2              SU2              J3               SIDE         0          0.65       NO       0         
-OR3              SU3              J4               SIDE         0          0.65       NO       0         
+OR1              SU1              J2               BOTTOM       0          0.65       NO       0         
+OR2              SU2              J3               BOTTOM       0          0.65       NO       0         
+OR3              SU3              J4               BOTTOM       0          0.65       NO       0         
 
 [WEIRS]
 ;;Name           From Node        To Node          Type         CrestHt    Qcoeff     Gated    EndCon   EndCoeff   Surcharge  RoadWidth  RoadSurf   Coeff. Curve
 ;;-------------- ---------------- ---------------- ------------ ---------- ---------- -------- -------- ---------- ---------- ---------- ---------- ----------------
-1                CS1              SU1              TRANSVERSE   0          3.33       NO       0        0          YES       
-2                CS2              SU2              TRANSVERSE   0          3.33       NO       0        0          YES       
-3                CS3              SU3              TRANSVERSE   0          3.33       NO       0        0          YES       
+W1               CS1              SU1              TRANSVERSE   0          3.33       NO       0        0          YES       
+W2               CS2              SU2              TRANSVERSE   0          3.33       NO       0        0          YES       
+W3               CS3              SU3              TRANSVERSE   0          3.33       NO       0        0          YES       
 
 [XSECTIONS]
 ;;Link           Shape        Geom1            Geom2      Geom3      Geom4      Barrels    Culvert   
@@ -130,12 +130,12 @@ C2               TRAPEZOIDAL  10               5          1          1          
 C3               TRAPEZOIDAL  10               5          1          1          1                    
 C4               TRAPEZOIDAL  10               5          1          1          1                    
 C5               TRAPEZOIDAL  10               5          1          1          1                    
-OR1              CIRCULAR     1                0          0          0
-OR2              CIRCULAR     1                0          0          0
-OR3              CIRCULAR     1                0          0          0
-1                RECT_OPEN    0.1              1          0          0         
-2                RECT_OPEN    0.1              1          0          0         
-3                RECT_OPEN    0.1              1          0          0         
+OR1              CIRCULAR     0.1              0          0          0
+OR2              CIRCULAR     0.1              0          0          0
+OR3              CIRCULAR     0.1              0          0          0
+W1               RECT_OPEN    0.1              1          0          0         
+W2               RECT_OPEN    0.1              1          0          0         
+W3               RECT_OPEN    0.1              1          0          0         
 
 [CURVES]
 ;;Name           Type       X-Value    Y-Value   
@@ -216,8 +216,8 @@ J1               -210.084           6422.205
 J2               1201.514           6395.459          
 J3               2828.761           6376.537          
 J4               4497.268           6316.940          
-J5               6167.521           6274.263          
-OF1              6167.521           6562.250          
+J5               5218.514           6288.838          
+OF1              5218.514           6572.494          
 SU1              1196.721           6844.278          
 SU2              2834.445           6819.613          
 SU3              4501.765           6799.881          
@@ -228,15 +228,15 @@ CS3              4353.778           7253.708
 [VERTICES]
 ;;Link           X-Coord            Y-Coord           
 ;;-------------- ------------------ ------------------
-2                2855.504           6876.266          
+W2               2855.504           6876.266          
 
 [Polygons]
 ;;Subcatchment   X-Coord            Y-Coord           
 ;;-------------- ------------------ ------------------
-S1               57.507             7311.386          
-S1               1557.507           7330.254          
-S1               1585.809           8707.612          
-S1               29.205             8717.046          
+S1               440.606            7351.769          
+S1               1940.606           7370.637          
+S1               1968.908           8747.995          
+S1               412.304            8757.429          
 S2               2095.032           7485.104          
 S2               3286.289           7397.672          
 S2               3472.081           8523.355          
@@ -245,10 +245,10 @@ S3               3897.742           7524.571
 S3               4903.206           7437.140          
 S3               5209.217           8344.244          
 S3               3930.529           8475.391          
-S_Upstream       -2241.696          6645.607          
-S_Upstream       -591.423           6601.891          
-S_Upstream       -514.920           8875.115          
-S_Upstream       -2219.838          8875.115          
+S_Upstream       -1465.061          6806.577          
+S_Upstream       185.212            6762.861          
+S_Upstream       261.715            9036.085          
+S_Upstream       -1443.203          9036.085          
 
 [SYMBOLS]
 ;;Gage           X-Coord            Y-Coord           
