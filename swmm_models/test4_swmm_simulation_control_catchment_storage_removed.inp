@@ -43,7 +43,7 @@ THREADS              4
 [EVAPORATION]
 ;;Data Source    Parameters
 ;;-------------- ----------------
-MONTHLY          0.37   0.57   1.15   1.95   3.09   3.38   4.02   3.49   2.29   1.36   0.63   0.37  
+MONTHLY          0.0   0.0   0.0   0.0   0.0   0.0   0.0   0.0   0.0   0.0   0.0   0.0
 DRY_ONLY         NO
 
 [RAINGAGES]
@@ -70,7 +70,7 @@ S_Upstream       0.01       0.1        0          0          25         OUTLET
 [INFILTRATION]
 ;;Subcatchment   Param1     Param2     Param3     Param4     Param5    
 ;;-------------- ---------- ---------- ---------- ---------- ----------
-S1               3.0        0.5        4          7          0         
+S1               0          0          0          0          0
 S2               3.0        0.5        4          7          0         
 S3               3.0        0.5        4          7          0         
 S_Upstream       3.0        0.5        4          7          0         
@@ -92,7 +92,7 @@ OF1              0          FIXED      0.3              NO
 [STORAGE]
 ;;Name           Elev.    MaxDepth   InitDepth  Shape      Curve Name/Params            N/A      Fevap    Psi      Ksat     IMD     
 ;;-------------- -------- ---------- ----------- ---------- ---------------------------- -------- --------          -------- --------
-SU1              6.75     2          0.4        TABULAR    storage_curve1               0        0       
+SU1              6.75     2          0.0        TABULAR    storage_curve1               0        0
 SU2              6        2          0.4        TABULAR    storage_curve2               0        0       
 SU3              5.5      2          0.3        TABULAR    storage_curve3               0        0       
 
@@ -179,9 +179,8 @@ catchment_storage3 Storage    0.01       100000
 [TIMESERIES]
 ;;Name           Date       Time       Value     
 ;;-------------- ---------- ---------- ----------
-100year          FILE "C:\SWMM\rain_swmm.dat"
 ;
-long_term_rainfallgauge5061 FILE "C:\SWMM\swmm_5061.dat"
+long_term_rainfallgauge5061 FILE "/home/martijn/Documents/CLAIRE/swmm_models/swmm_5061.dat"
 
 [REPORT]
 ;;Reporting Options
