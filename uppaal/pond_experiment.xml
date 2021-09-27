@@ -7,7 +7,7 @@ const int h = 60*m; // 1 hour = 60 minutes
 clock t = //TAG_t; // global time [min]
 
 // Urban catchment
-const double UC_k = 0.25; // Urban surface resevoir reaction factor [cm/min * 1 / cm]
+const double UC_k = 0.25; // Urban surface reservoir reaction factor [cm/min * 1 / cm]
 const double A_UC = 20.0 * 10000.0 * 10000.0; // urban area catchment [cm2], 1 ha = 10000 m2, 1 m2 = 10000 cm2 = [cm/(min*cm)]
 // C1: 20 ha, C2: 15 ha, C3: 10 ha
 double rain = //TAG_rain; // Rainfall [cm/min]
@@ -16,14 +16,14 @@ clock S_UC = //TAG_S_UC; // Water surface height urban catchment [cm]
 // Rain detention pond
 const int W = 200; // max water height [cm]
 clock w = //TAG_w; // water level in pond [cm]
-double Qout = //TAG_Qout; // pond outflow [cm3/min], will be properly initialized in Controller
-clock o = //TAG_o; // accumelated overflow time [min]
+double Open = //TAG_Open; // orifice relative diameter opening [-], will be properly initialized in Controller
+clock o = //TAG_o; // accumulated overflow time [min]
 
 // Cost function
 clock c = //TAG_c; // cost function [-]
 
 // Import data reading functions
-import "/media/sf_shared/MPC/Python/DynamicWeatherForecast/uppaal/libtable.so" {
+import "/home/martijn/Documents/CLAIRE/uppaal/libtable.so" {
     /** read the table from the csv file and return its id: */
     int table_read_csv(const string&amp; filename, int skip_lines);
     /** return the number of rows in the table: */
@@ -51,24 +51,44 @@ const double L = 7464.5; // pond geometry L [cm], 7464.5 -&gt; 5572 m2 area
 // P3: area = 1550 m2, max depth = 1.355 m
 const double A1 = 2250 * 10000.0; // pond area A1 [cm2] 1 m2 -&gt; 10000 cm2
 
+// Orifice parameters
+const double C = 0.65; // discharge coefficient [-]
+const double d = 10.0; // maximum diameter [cm]
+const double g = 980.7; // gravitational acceleration [cm/s2]
+const double PI_4 = 0.785398163397448279; // Pi/4
+
 // Flow from urban catchment to pond. Eq. 2 in paper.
 double Qin()
 {
     return S_UC * UC_k * A_UC;
 }
 
+// Open area of the orifice.
+double A()
+{
+    return PI_4 * d * d * Open * Open;
+}
+
+// Flow from the pond to the nearby stream through the orifice [cm3/min].
+double Qout()
+{
+     if (w &lt;= 0) return 0;
+
+    else return 60 * C * A() * sqrt(2 * g * w);
+}
+
 // Dynamics of the water level. Eqs. 4 and 5 in the paper combined.
 double pond_dynamics()
 {
-    if (w &lt;= 0 &amp;&amp; Qin() &lt;= Qout) return 0;
+    if (w &lt;= 0 &amp;&amp; Qin() &lt;= Qout()) return 0;
 
-    else if (w &gt;= W &amp;&amp; Qin() &gt;= Qout) return 0; 
+    else if (w &gt;= W &amp;&amp; Qin() &gt;= Qout()) return 0; 
 
-    //else return H*H/(L*L)/((w+H)*(w+H))*(Qin()-Qout); // Inverted pyramid
-    else return (Qin() - Qout) / A1; // Box
+    //else return H*H/(L*L)/((w+H)*(w+H))*(Qin()-Qout()); // Inverted pyramid
+    else return (Qin() - Qout()) / A1; // Box
 }
 
-// Cummulative overflow duration. Eq. 6 in the paper.
+// Cumulative overflow duration. Eq. 6 in the paper.
 double overflow()
 {
     const double epsilon = 0.1; // for numerical precision 
@@ -99,9 +119,8 @@ o' == overflow()</label>
 	<template>
 		<name>Controller</name>
 		<declaration>const int P = h; // control switching period [min]
-const double Qomax = 20 * 1000.0 * 60; // max outflow [cm3/min], 1000 cm3/s = 1 l/s
 const int C = 3; // number of control modes
-const double Qoutv[C] = {(1.0/6.0)*Qomax, (2.0/3.0)*Qomax, (3.0/3.0)*Qomax}; // outflow modes
+const double Opening[C] = {1.0/3.0, 2.0/3.0, 3.0/3.0}; // orifice diameter opening modes
 
 clock x = 0.0; // control switching clock</declaration>
 		<location id="id3" x="0" y="0">
@@ -118,7 +137,7 @@ clock x = 0.0; // control switching clock</declaration>
 			<source ref="id5"/>
 			<target ref="id3"/>
 			<label kind="select" x="17" y="-102">i:int[0,C-1]</label>
-			<label kind="assignment" x="0" y="-85">x = 0, Qout = Qoutv[i]</label>
+			<label kind="assignment" x="0" y="-85">x = 0, Open = Opening[i]</label>
 			<nail x="102" y="-59"/>
 			<nail x="0" y="-59"/>
 		</transition>
@@ -131,7 +150,7 @@ clock x = 0.0; // control switching clock</declaration>
 			<source ref="id4"/>
 			<target ref="id3"/>
 			<label kind="select" x="-127" y="-17">i:int[0,C-1]</label>
-			<label kind="assignment" x="-144" y="0">Qout=Qoutv[i]</label>
+			<label kind="assignment" x="-153" y="0">Open = Opening[i]</label>
 		</transition>
 	</template>
 	<template>
@@ -142,7 +161,7 @@ int rainLoc = //TAG_Rain.rainLoc; // rain location, only used for online control
 clock d = 0.0; // duration of dry or raining period [min]
 
 // Load weather forecast data from external data file.
-const int file_id = table_read_csv("/media/sf_shared/MPC/Python/DynamicWeatherForecast/uppaal/weather_forecast.csv", 1);
+const int file_id = table_read_csv("/home/martijn/Documents/CLAIRE/uppaal/weather_forecast.csv", 1);
 const int rows = table_rows(file_id);
 const int cols = table_cols(file_id);
 
@@ -244,7 +263,7 @@ rainLoc = 1</label>
 			<nail x="0" y="-51"/>
 		</transition>
 	</template>
-	<system>system Pond, Rain, Controller, CostFunction, UrbanCatchment;</system>
+	<system>system Pond, Rain, UrbanCatchment, Controller, CostFunction;</system>
 	<queries>
 		<option key="--good-runs" value="20"/>
 		<option key="--total-runs" value="50"/>
