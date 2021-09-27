@@ -26,11 +26,13 @@ def swmm_control(swmm_inputfile, orifice_id, opening_settings, basin_id, time_st
     orifice_flow = []
     basin_total_inflow = []
     basin_total_outflow = []
+    basin_total_evaporation = []
     overflow = []
     rain = []
     subcatchment_total_rain = []
     subcatchment_total_runoff = []
     subcatchment_total_infiltration = []
+    subcatchment_total_evaporation = []
 
     with Simulation(swmm_inputfile) as sim:
         su = Nodes(sim)[basin_id]
@@ -53,21 +55,25 @@ def swmm_control(swmm_inputfile, orifice_id, opening_settings, basin_id, time_st
             overflow.append(su.statistics.get('flooding_volume'))
             total_outflow = total_outflow + su.total_outflow
             basin_total_outflow.append(total_outflow)
+            basin_total_evaporation.append(su.storage_statistics.get('evap_loss'))
             total_rainfall = total_rainfall + ca.rainfall
             subcatchment_total_rain.append(total_rainfall)
             subcatchment_total_runoff.append(ca.statistics.get('runoff'))
             subcatchment_total_infiltration.append(ca.statistics.get('infiltration'))
+            subcatchment_total_evaporation.append(ca.statistics.get('evaporation'))
 
     dirname = os.path.dirname(swmm_inputfile)
     output_csv_file = os.path.join(dirname, csv_file_basename + "." + "csv")
     with open(output_csv_file, "w") as f:
         writer = csv.writer(f)
-        for i, j, k, l, m, n, o, p, q, r in zip(time_series, water_depth, orifice_flow, rain,
-                                                basin_total_inflow, basin_total_outflow, overflow,
-                                                subcatchment_total_rain, subcatchment_total_runoff,
-                                                subcatchment_total_infiltration):
+        for i, j, k, l, m, n, o, p, q, r, s, t in zip(time_series, water_depth, orifice_flow, rain,
+                                                      basin_total_inflow, basin_total_outflow, overflow,
+                                                      subcatchment_total_rain, subcatchment_total_runoff,
+                                                      subcatchment_total_infiltration,
+                                                      basin_total_evaporation,
+                                                      subcatchment_total_evaporation):
             i = i.strftime('%Y-%m-%d %H:%M')
-            writer.writerow([i, j, k, l, m, n, o, p, q, r])
+            writer.writerow([i, j, k, l, m, n, o, p, q, r, s, t])
 
 
 def insert_rain_data_file_path(swmm_inputfile, rain_data_file):
@@ -92,7 +98,7 @@ if __name__ == "__main__":
     this_file = os.path.realpath(__file__)
     base_folder = os.path.dirname(os.path.dirname(this_file))
     swmm_folder = "swmm_models"
-    swmm_inputfile = os.path.join(base_folder, swmm_folder, "test4_swmm_simulation_control_catchment_storage_removed.inp")
+    swmm_inputfile = os.path.join(base_folder, swmm_folder, "test4_swmm_simulation_control_catchment_storage_removed-old.inp")
     assert (os.path.isfile(swmm_inputfile))
 
     # We found the model. Now we have to include the correct path to the rain data into the model.
@@ -102,10 +108,10 @@ if __name__ == "__main__":
 
     # Finally we can specify other variables and start the swmm script.
     orifice_id = "OR1"
-    opening_settings = 1.0 # 50% opening
+    opening_settings = 1.0 # opening
     basin_id = "SU1"
     time_step = 60
-    csv_file_basename = "swmm_results_catchment_removed"
+    csv_file_basename = "swmm_results_catchment_removed-old"
 
     swmm_control(swmm_inputfile, orifice_id, opening_settings, basin_id, time_step, csv_file_basename)
     print("procedure completed!")
