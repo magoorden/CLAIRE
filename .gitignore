@@ -6,3 +6,7 @@
 *.rpt
 
 scripts/__pycache__/
+
+uppaal/weather_forecast.csv
+
+uppaal/result.txt

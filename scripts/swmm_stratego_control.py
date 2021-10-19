@@ -66,9 +66,9 @@ def swmm_control(swmm_inputfile, orifice_id, basin_id, time_step, csv_file_basen
         total_outflow = 0
         total_rainfall = 0
         for step in sim:
-            time_series.append(sim.current_time)
-            water_depth.append(su.depth)
             current_time = sim.current_time
+            time_series.append(current_time)
+            water_depth.append(su.depth)
             i = i + 1
             print_progress_bar(i, duration, "progress")
             # Set the control parameter
@@ -103,7 +103,7 @@ def swmm_control(swmm_inputfile, orifice_id, basin_id, time_step, csv_file_basen
 
 def get_control_strategy(current_water_level, current_time, controller, period, horizon,
                          rain_data_file, weather_forecast_path, uncertainty):
-    controller.controller.update_state({'w': current_water_level})
+    controller.controller.update_state({'w': current_water_level * 100}) #  Conversion from m to cm.
     control_setting = controller.run_single(period, horizon, start_date=current_time,
                                             historical_rain_data_path=rain_data_file,
                                             weather_forecast_path=weather_forecast_path,
@@ -210,9 +210,8 @@ if __name__ == "__main__":
     # Finally we can specify other variables of swimm.
     orifice_id = "OR1"
     basin_id = "SU1"
-    orfice_id = "OR1"
     time_step = 60 * 60  # 60 seconds/min x 60 min/h -> 1 h
-    csv_file_basename = "swmm_results_catchment_removed-online"
+    swmm_results = "swmm_results_catchment_removed-online-2"
 
     # Now we locate the Uppaal folder and files.
     uppaal_folder_name = "uppaal"
@@ -226,11 +225,11 @@ if __name__ == "__main__":
     verifyta_command = "verifyta-stratego-8-7"
 
     # Define uppaal model variables.
-    action_variable = "Open"  # Name of the control variable
+    action_variable = "Open"  # Name of the control variable.
     debug = True  # Whether to run in debug mode.
     period = 60  # Control period in time units (minutes).
     horizon = 12  # How many periods to compute strategy for.
-    uncertainty = 0.0001  # The uncertainty in the weather forecast generation.
+    uncertainty = 0.1  # The uncertainty in the weather forecast generation.
 
     # Get model and learning config dictionaries from files.
     with open(model_config_path, "r") as yamlfile:
@@ -246,6 +245,6 @@ if __name__ == "__main__":
                               external_simulator=False,
                               action_variable=action_variable, debug=debug)
 
-    swmm_control(swmm_inputfile, orifice_id, basin_id, time_step, csv_file_basename, controller,
+    swmm_control(swmm_inputfile, orifice_id, basin_id, time_step, swmm_results, controller,
                  period, horizon, rain_data_file, weather_forecast_path, uncertainty)
     print("procedure completed!")

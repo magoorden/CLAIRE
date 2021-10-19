@@ -303,7 +303,7 @@ to speed up the calculation.
 3000 runs in approximately 2.5 minutes.</comment>
 		</query>
 		<query>
-			<formula>E[&lt;=72*h; 1000] (max:0) under opt</formula>
+			<formula>E[&lt;=72*h; 1000] (max:o) under opt</formula>
 			<comment>Should be 0, as we synthesized a strategy with guarantees on this variable.
 Set in options -&gt; statistical parameters the 'discretization step for hybrid systems' to 
 0.5 to speed up calculation.</comment>
