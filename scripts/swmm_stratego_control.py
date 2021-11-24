@@ -193,6 +193,26 @@ def insert_rain_data_file_path(swmm_inputfile, rain_data_file):
         f.truncate()
 
 
+def insert_paths_in_uppaal_model(uppaal_model, weather_forecast_path, libtable_path):
+    """
+    Insert the provided weather forecast path into the uppaal model.
+
+    :param str uppaal_model: uppaal model path
+    :param str weather_forecast_path: weather forecast path
+    :param str libtable_path: libtable.so path
+    """
+    with open(uppaal_model, "r+") as f:
+        file_content = f.read()
+        new_line = "const int file_id = table_read_csv(\"" + weather_forecast_path + "\""
+        file_content = re.sub(r"const int file_id = table_read_csv\(\"[^\"]*\"", new_line,
+                              file_content, count=1)
+        new_line = "import \"" + libtable_path + "\""
+        file_content = re.sub(r"import \"[^\"]*\"", new_line, file_content, count=1)
+        f.seek(0)
+        f.write(file_content)
+        f.truncate()
+
+
 if __name__ == "__main__":
     # First figure out where the swmm model file is located. This is also OS dependent.
     this_file = os.path.realpath(__file__)
@@ -223,6 +243,8 @@ if __name__ == "__main__":
     weather_forecast_path = os.path.join(uppaal_folder, "weather_forecast.csv")
     output_file_path = os.path.join(uppaal_folder, "result.txt")
     verifyta_command = "verifyta-stratego-8-7"
+    insert_paths_in_uppaal_model(model_template_path, weather_forecast_path,
+                                 os.path.join(uppaal_folder, "libtable.so"))
 
     # Define uppaal model variables.
     action_variable = "Open"  # Name of the control variable.
