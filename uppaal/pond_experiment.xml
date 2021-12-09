@@ -16,6 +16,7 @@ clock S_UC = //TAG_S_UC; // Water surface height urban catchment [cm]
 // Rain detention pond
 const int W = 200; // max water height [cm]
 clock w = //TAG_w; // water level in pond [cm]
+double wmax = 0.0; // Maximum water level encountered [cm]
 double Open = //TAG_Open; // orifice relative diameter opening [-], will be properly initialized in Controller
 clock o = //TAG_o; // accumulated overflow time [min]
 
@@ -133,24 +134,26 @@ clock x = 0.0; // control switching clock</declaration>
 			<urgent/>
 		</location>
 		<init ref="id4"/>
-		<transition>
+		<transition id="id6">
 			<source ref="id5"/>
 			<target ref="id3"/>
 			<label kind="select" x="17" y="-102">i:int[0,C-1]</label>
-			<label kind="assignment" x="0" y="-85">x = 0, Open = Opening[i]</label>
+			<label kind="assignment" x="0" y="-85">x = 0, Open = Opening[i],
+wmax = fmax(wmax, w)</label>
 			<nail x="102" y="-59"/>
 			<nail x="0" y="-59"/>
 		</transition>
-		<transition controllable="false">
+		<transition id="id7" controllable="false">
 			<source ref="id3"/>
 			<target ref="id5"/>
 			<label kind="guard" x="34" y="8">x==P</label>
 		</transition>
-		<transition>
+		<transition id="id8">
 			<source ref="id4"/>
 			<target ref="id3"/>
 			<label kind="select" x="-127" y="-17">i:int[0,C-1]</label>
-			<label kind="assignment" x="-153" y="0">Open = Opening[i]</label>
+			<label kind="assignment" x="-153" y="0">Open = Opening[i],
+wmax = w</label>
 		</transition>
 	</template>
 	<template>
@@ -213,34 +216,34 @@ double uniform(double lower, double upper)
     double sample = random(distance);
     return lower + sample;
 }</declaration>
-		<location id="id6" x="-153" y="-8">
+		<location id="id9" x="-153" y="-8">
 			<name x="-204" y="-17">Dry</name>
 			<label kind="invariant" x="-229" y="8">d &lt;= dryU</label>
 		</location>
-		<location id="id7" x="17" y="-8">
+		<location id="id10" x="17" y="-8">
 			<name x="34" y="-25">Raining</name>
 			<label kind="invariant" x="25" y="0">d &lt;= rainU</label>
 		</location>
-		<location id="id8" x="-68" y="170">
+		<location id="id11" x="-68" y="170">
 			<name x="-93" y="136">Start</name>
 			<urgent/>
 		</location>
-		<init ref="id8"/>
-		<transition controllable="false">
-			<source ref="id8"/>
-			<target ref="id7"/>
+		<init ref="id11"/>
+		<transition id="id12" controllable="false">
+			<source ref="id11"/>
+			<target ref="id10"/>
 			<label kind="guard" x="-51" y="170">rainLoc == 1</label>
 			<nail x="17" y="170"/>
 		</transition>
-		<transition controllable="false">
-			<source ref="id8"/>
-			<target ref="id6"/>
+		<transition id="id13" controllable="false">
+			<source ref="id11"/>
+			<target ref="id9"/>
 			<label kind="guard" x="-178" y="170">rainLoc == 0</label>
 			<nail x="-153" y="170"/>
 		</transition>
-		<transition controllable="false">
-			<source ref="id7"/>
-			<target ref="id6"/>
+		<transition id="id14" controllable="false">
+			<source ref="id10"/>
+			<target ref="id9"/>
 			<label kind="guard" x="-119" y="8">d &gt;= rainL</label>
 			<label kind="assignment" x="-136" y="34">d = 0, i++,
 dryL = get_dryL(i),
@@ -250,9 +253,9 @@ rainLoc = 0</label>
 			<nail x="-8" y="34"/>
 			<nail x="-127" y="34"/>
 		</transition>
-		<transition controllable="false">
-			<source ref="id6"/>
-			<target ref="id7"/>
+		<transition id="id15" controllable="false">
+			<source ref="id9"/>
+			<target ref="id10"/>
 			<label kind="guard" x="-119" y="-42">d &gt;= dryL</label>
 			<label kind="assignment" x="-127" y="-153">d = 0,
 rainL = get_rainL(i),
@@ -265,11 +268,11 @@ rainLoc = 1</label>
 	</template>
 	<system>system Pond, Rain, UrbanCatchment, Controller, CostFunction;</system>
 	<queries>
-		<option key="--good-runs" value="20"/>
 		<option key="--total-runs" value="50"/>
-		<option key="--runs-pr-state" value="10"/>
-		<option key="--eval-runs" value="10"/>
 		<option key="--discretization" value="0.5"/>
+		<option key="--good-runs" value="20"/>
+		<option key="--eval-runs" value="10"/>
+		<option key="--runs-pr-state" value="10"/>
 		<query>
 			<formula>// Random control</formula>
 			<comment/>

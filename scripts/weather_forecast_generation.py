@@ -25,7 +25,7 @@ def read_rain_data(data_file):
             words = line.split()
             # In <name>.dat rain file, we have mm/dd/yyyy hh:mm:ss x.y per line.
             dt = datetime.datetime.strptime(words[0] + " " + words[1], "%m/%d/%Y %H:%M:%S")
-            rain_data.append([dt, float(words[2]) / 60])
+            rain_data.append([dt, float(words[2]) / 60])  # Divided by 60 to get mm/h -> mm/min.
     return rain_data
 
 
@@ -94,8 +94,13 @@ def calculate_weather_intervals(rain_data, start_date, horizon, uncertainty):
 
     # Wrap up the last next_interval array.
     interval_duration = index - start_current_interval
-    next_interval.append(int(round(interval_duration * (1 - uncertainty))))
-    next_interval.append(int(round(interval_duration * (1 + uncertainty))))
+    if interval_duration == horizon + 1:  # Nothing will change.
+        next_interval.append(interval_duration)
+        next_interval.append(interval_duration)
+    else:
+        next_interval.append(int(round(interval_duration * (1 - uncertainty))))
+        next_interval.append(int(round(interval_duration * (1 + uncertainty))))
+
     if raining:
         next_interval.append(cumulative_rain / interval_duration)
     else:

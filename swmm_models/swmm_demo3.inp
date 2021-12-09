@@ -55,7 +55,7 @@ RG1              INTENSITY 0:01     1.0      TIMESERIES long_term_rainfallgauge5
 ;;Name           Rain Gage        Outlet           Area     %Imperv  Width    %Slope   CurbLen  SnowPack        
 ;;-------------- ---------------- ---------------- -------- -------- -------- -------- -------- ----------------
 S1               RG1              SU1              20       90       10       0.5      0
-S2               RG1              SU2              15       90       4        0.5      0                        
+S2               RG1              SU2              20       90       10       0.5      0
 S3               RG1              SU3              10       90       3        0.5      0                        
 S_Upstream       RG1              J1               500      25       25       0.5      0                        
 
@@ -71,7 +71,7 @@ S_Upstream       0.01       0.1        0          0          25         OUTLET
 ;;Subcatchment   Param1     Param2     Param3     Param4     Param5    
 ;;-------------- ---------- ---------- ---------- ---------- ----------
 S1               0          0          0          0          0
-S2               3.0        0.5        4          7          0         
+S2               0          0          0          0          0
 S3               3.0        0.5        4          7          0         
 S_Upstream       3.0        0.5        4          7          0         
 
@@ -93,7 +93,7 @@ OF1              0          FIXED      0.3              NO
 ;;Name           Elev.    MaxDepth   InitDepth  Shape      Curve Name/Params            N/A      Fevap    Psi      Ksat     IMD     
 ;;-------------- -------- ---------- ----------- ---------- ---------------------------- -------- --------          -------- --------
 SU1              6.75     2          0.0        TABULAR    storage_curve1               0        0
-SU2              6        2          0.4        TABULAR    storage_curve2               0        0       
+SU2              6        2          0.0        TABULAR    storage_curve2               0        0
 SU3              5.5      2          0.3        TABULAR    storage_curve3               0        0       
 
 [CONDUITS]
@@ -120,7 +120,7 @@ C2               TRAPEZOIDAL  10               5          1          1          
 C3               TRAPEZOIDAL  10               5          1          1          1                    
 C4               TRAPEZOIDAL  10               5          1          1          1                    
 C5               TRAPEZOIDAL  10               5          1          1          1                    
-OR1              CIRCULAR     0.1              0          0          0
+OR1              CIRCULAR     0.175            0          0          0
 OR2              CIRCULAR     0.1              0          0          0
 OR3              CIRCULAR     0.1              0          0          0
 
@@ -166,13 +166,13 @@ discharge_curve3            1.4        0.01
 ;
 storage_curve1   Storage    2          2250      
 ;
-storage_curve2   Storage    2          1500      
+storage_curve2   Storage    2          2250
 ;
 storage_curve3   Storage    1.355      1550      
 ;
 catchment_storage1 Storage    0.1        200000    
 ;
-catchment_storage2 Storage    0.1        150000    
+catchment_storage2 Storage    0.1        200000
 ;
 catchment_storage3 Storage    0.01       100000    
 

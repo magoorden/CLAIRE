@@ -7,6 +7,7 @@ import datetime
 import sys
 import yaml
 import weather_forecast_generation as weather
+import matplotlib.pyplot as plt
 
 
 def swmm_control(swmm_inputfile, orifice_id, basin_id, time_step, csv_file_basename, controller,
@@ -66,6 +67,58 @@ def swmm_control(swmm_inputfile, orifice_id, basin_id, time_step, csv_file_basen
         rain.append(0)
         total_precipitation = 0
 
+        plt.ion()
+        plt.rc('font', size=16)
+        fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, gridspec_kw={'height_ratios': [5, 1]})
+        # Axes for current pond water level.
+        # ax1 = fig.add_subplot(2, 2, 1)
+        ax1.set_xlabel('')
+        ax1.set_ylabel('Water level [m]')
+        ax1.set_title("Water level at " + current_time.strftime('%Y-%m-%d %H:%M'))
+        ax1.set_xlim(0, 1)
+        ax1.set_ylim(0, su1.full_depth)
+
+        # Axes for pond water level history.
+        #ax2 = fig.add_subplot(2, 2, 2)
+        ax2.set_xlabel('Time')
+        ax2.set_ylabel('Water level [m]', color='blue')
+        ax2.set_title('History of water level')
+        ax2.set_xlim(sim.start_time, sim.end_time)
+        plt.setp(ax2.get_xticklabels(), rotation=30, ha='right')  # autofmt_xdate removes all other x_axes
+
+        ax2.set_ylim(0, su1.full_depth + 2)
+        ax2.tick_params(axis='y', colors='blue')
+        ax2.spines['left'].set_color('blue')
+
+        ax22 = ax2.twinx()  # Instantiate a second axes that shares the same x-axis
+        ax22.set_ylabel('Rainfall [mm]', color='black')
+        ax22.set_ylim(5, 0)
+        ax22.tick_params(axis='y', colors='black')
+        #fig.tight_layout()  # Otherwise the right y-label is slightly clipped
+
+        # Axes for weather forecast.
+        #ax3 = fig.add_subplot(2, 1, 2)
+        ax3.axis('off')
+        rain_low, rain_high, rain_int = get_weather_forecast_result(weather_forecast_path)
+        text = ax3.text(0.1, 0.05, f'Weather forecast:\n- Next rainfall starts between {rain_low} '
+                                   f'and {rain_high} minutes.\n- The rain intensity will be '
+                                   f'approximately {60*rain_int:.2f} mm/h.\n\nChosen control '
+                                   f'setting: {1.75*orifice.target_setting:.2f}', size=22)
+
+        ax4.axis('off')
+        plt.show()
+        plt.pause(10)  # So you can rescale the fig before the first data is being plotted.
+
+        # Plot the actual data.
+        points, = ax1.fill([0, 1, 1, 0], [0, 0, su1.depth, su1.depth], 'b')
+        level_basin1_line, = ax2.plot(time_series, water_depth_basin1, 'b')
+        level_basin2_line, = ax2.plot(time_series, water_depth_basin2, '--r')
+        orifice_line, = ax2.plot(time_series, orifice_settings, 'g')
+        rain_line, = ax22.step(time_series, rain, 'k')
+        ax2.legend([level_basin1_line, level_basin2_line], ['Optimal control', 'static control'],
+                   loc='center right')
+        plt.pause(0.01)
+
         total_inflow = 0
         total_outflow = 0
         total_rainfall = 0
@@ -76,6 +129,13 @@ def swmm_control(swmm_inputfile, orifice_id, basin_id, time_step, csv_file_basen
             water_depth_basin2.append(su2.depth)
             rain.append(ca.statistics.get('precipitation') - total_precipitation)
             total_precipitation = ca.statistics.get('precipitation')
+            ax1.set_title(basin_id + ": " + current_time.strftime('%Y-%m-%d %H:%M'))
+            points.set_xy([[0, 0], [1, 0], [1, su1.depth], [0, su1.depth]])
+            level_basin1_line.set_data(time_series, water_depth_basin1)
+            level_basin2_line.set_data(time_series, water_depth_basin2)
+            rain_line.set_data(time_series, rain)
+            plt.pause(0.1)
+            # ax.fill([0, 1, 1, 0], [0, 0, su.depth, su.depth], 'b')
 
             i = i + 1
             print_progress_bar(i, duration, "progress")
@@ -84,6 +144,13 @@ def swmm_control(swmm_inputfile, orifice_id, basin_id, time_step, csv_file_basen
                                                           period, horizon, rain_data_file,
                                                           weather_forecast_path, uncertainty)
             orifice_settings.append(1.75*orifice.target_setting + 2)
+            orifice_line.set_data(time_series, orifice_settings)
+            rain_low, rain_high, rain_int = get_weather_forecast_result(weather_forecast_path)
+            text.set_text(f'Weather forecast:\n- Next rainfall starts between {rain_low} and '
+                          f'{rain_high} minutes.\n- The rain intensity will be approximately '
+                          f'{60*rain_int:.2f} mm/h.\n\nChosen control setting: '
+                          f'{1.75*orifice.target_setting:.2f}')
+            plt.pause(0.1)
 
             # orifice_flow.append(orifice.flow)
             # rain.append(rg1.rainfall)
@@ -101,6 +168,7 @@ def swmm_control(swmm_inputfile, orifice_id, basin_id, time_step, csv_file_basen
 
     i = i + 1
     print_progress_bar(i, duration, "progress")
+    plt.pause(5)
     dirname = os.path.dirname(swmm_inputfile)
     output_csv_file = os.path.join(dirname, csv_file_basename + "." + "csv")
     with open(output_csv_file, "w") as f:
@@ -117,8 +185,16 @@ def get_control_strategy(current_water_level, current_time, controller, period, 
                                             historical_rain_data_path=rain_data_file,
                                             weather_forecast_path=weather_forecast_path,
                                             uncertainty=uncertainty)
-
     return control_setting
+
+
+def get_weather_forecast_result(weather_forecast_path):
+    with open(weather_forecast_path, "r") as f:
+        weather_forecast = csv.reader(f, delimiter=',', quotechar='"')
+        headers = next(weather_forecast)
+        first_data = next(weather_forecast)
+
+        return int(first_data[0]), int(first_data[1]), float(first_data[4])
 
 
 def print_progress_bar(i, max, post_text):
@@ -229,8 +305,7 @@ if __name__ == "__main__":
     this_file = os.path.realpath(__file__)
     base_folder = os.path.dirname(os.path.dirname(this_file))
     swmm_folder = "swmm_models"
-    swmm_inputfile = os.path.join(base_folder, swmm_folder,
-                                  "swmm_demo3.inp")
+    swmm_inputfile = os.path.join(base_folder, swmm_folder, "swmm_demo3.inp")
     assert (os.path.isfile(swmm_inputfile))
 
     # We found the model. Now we have to include the correct path to the rain data into the model.
@@ -242,17 +317,17 @@ if __name__ == "__main__":
     orifice_id = "OR1"
     basin_id = "SU1"
     time_step = 60 * 60  # 60 seconds/min x 60 min/h -> 1 h
-    swmm_results = "swmm_results_catchment_removed-online-2"
+    swmm_results = "swmm_demo3_results"
 
     # Now we locate the Uppaal folder and files.
     uppaal_folder_name = "uppaal"
     uppaal_folder = os.path.join(base_folder, uppaal_folder_name)
     model_template_path = os.path.join(uppaal_folder, "pond_demo3.xml")
-    query_file_path = os.path.join(uppaal_folder, "pond_experiment_query.q")
-    model_config_path = os.path.join(uppaal_folder, "pond_experiment_config.yaml")
-    learning_config_path = os.path.join(uppaal_folder, "verifyta_config.yaml")
-    weather_forecast_path = os.path.join(uppaal_folder, "weather_forecast.csv")
-    output_file_path = os.path.join(uppaal_folder, "result.txt")
+    query_file_path = os.path.join(uppaal_folder, "pond_demo3_query.q")
+    model_config_path = os.path.join(uppaal_folder, "pond_demo3_config.yaml")
+    learning_config_path = os.path.join(uppaal_folder, "verifyta_demo3_config.yaml")
+    weather_forecast_path = os.path.join(uppaal_folder, "demo3_weather_forecast.csv")
+    output_file_path = os.path.join(uppaal_folder, "demo3_result.txt")
     verifyta_command = "verifyta-stratego-8-11"
     insert_paths_in_uppaal_model(model_template_path, weather_forecast_path,
                                  os.path.join(uppaal_folder, "libtable.so"))
