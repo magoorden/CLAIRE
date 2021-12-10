@@ -37,6 +37,9 @@ def swmm_control(swmm_inputfile, orifice_id, basin_id, time_step, csv_file_basen
     # basin_total_evaporation = []
     # overflow = []
     rain = []
+    weather_forecast_low = []
+    weather_forecast_high = []
+    weather_forecast_int = []
     # subcatchment_total_rain = []
     # subcatchment_total_runoff = []
     # subcatchment_total_infiltration = []
@@ -60,6 +63,10 @@ def swmm_control(swmm_inputfile, orifice_id, basin_id, time_step, csv_file_basen
                                                       horizon, rain_data_file,
                                                       weather_forecast_path, uncertainty)
         orifice_settings.append(1.75*orifice.target_setting + 2)
+        rain_low, rain_high, rain_int = get_weather_forecast_result(weather_forecast_path)
+        weather_forecast_low.append(rain_low)
+        weather_forecast_high.append(rain_high)
+        weather_forecast_int.append(rain_int)
         time_series.append(sim.start_time)
         water_depth_basin1.append(su1.depth)
         water_depth_basin2.append(su2.depth)
@@ -84,6 +91,10 @@ def swmm_control(swmm_inputfile, orifice_id, basin_id, time_step, csv_file_basen
                                                           period, horizon, rain_data_file,
                                                           weather_forecast_path, uncertainty)
             orifice_settings.append(1.75*orifice.target_setting + 2)
+            rain_low, rain_high, rain_int = get_weather_forecast_result(weather_forecast_path)
+            weather_forecast_low.append(rain_low)
+            weather_forecast_high.append(rain_high)
+            weather_forecast_int.append(rain_int)
 
             # orifice_flow.append(orifice.flow)
             # rain.append(rg1.rainfall)
@@ -105,9 +116,13 @@ def swmm_control(swmm_inputfile, orifice_id, basin_id, time_step, csv_file_basen
     output_csv_file = os.path.join(dirname, csv_file_basename + "." + "csv")
     with open(output_csv_file, "w") as f:
         writer = csv.writer(f)
-        for i, j, k in zip(time_series, water_depth_basin1, orifice_settings):
+        writer.writerow(["time", "water_depth_basin1", "water_depth_basin2", "orifice_setting",
+                         "rain", "forecast_low", "forecast_high", "forecast_int"])
+        for i, j, k, l, m, n, o, p in zip(time_series, water_depth_basin1, water_depth_basin2,
+                                          orifice_settings, rain, weather_forecast_low,
+                                          weather_forecast_high, weather_forecast_int):
             i = i.strftime('%Y-%m-%d %H:%M')
-            writer.writerow([i, j, k])
+            writer.writerow([i, j, k, l, m, n, o, p])
 
 
 def get_control_strategy(current_water_level, current_time, controller, period, horizon,
@@ -119,6 +134,15 @@ def get_control_strategy(current_water_level, current_time, controller, period, 
                                             uncertainty=uncertainty)
 
     return control_setting
+
+
+def get_weather_forecast_result(weather_forecast_path):
+    with open(weather_forecast_path, "r") as f:
+        weather_forecast = csv.reader(f, delimiter=',', quotechar='"')
+        headers = next(weather_forecast)
+        first_data = next(weather_forecast)
+
+        return int(first_data[0]), int(first_data[1]), float(first_data[4])
 
 
 def print_progress_bar(i, max, post_text):
@@ -229,8 +253,7 @@ if __name__ == "__main__":
     this_file = os.path.realpath(__file__)
     base_folder = os.path.dirname(os.path.dirname(this_file))
     swmm_folder = "swmm_models"
-    swmm_inputfile = os.path.join(base_folder, swmm_folder,
-                                  "swmm_demo3.inp")
+    swmm_inputfile = os.path.join(base_folder, swmm_folder, "swmm_demo3.inp")
     assert (os.path.isfile(swmm_inputfile))
 
     # We found the model. Now we have to include the correct path to the rain data into the model.
@@ -242,17 +265,17 @@ if __name__ == "__main__":
     orifice_id = "OR1"
     basin_id = "SU1"
     time_step = 60 * 60  # 60 seconds/min x 60 min/h -> 1 h
-    swmm_results = "swmm_results_catchment_removed-online-2"
+    swmm_results = "swmm_demo3_results"
 
     # Now we locate the Uppaal folder and files.
     uppaal_folder_name = "uppaal"
     uppaal_folder = os.path.join(base_folder, uppaal_folder_name)
     model_template_path = os.path.join(uppaal_folder, "pond_demo3.xml")
-    query_file_path = os.path.join(uppaal_folder, "pond_experiment_query.q")
-    model_config_path = os.path.join(uppaal_folder, "pond_experiment_config.yaml")
-    learning_config_path = os.path.join(uppaal_folder, "verifyta_config.yaml")
-    weather_forecast_path = os.path.join(uppaal_folder, "weather_forecast.csv")
-    output_file_path = os.path.join(uppaal_folder, "result.txt")
+    query_file_path = os.path.join(uppaal_folder, "pond_demo3_query.q")
+    model_config_path = os.path.join(uppaal_folder, "pond_demo3_config.yaml")
+    learning_config_path = os.path.join(uppaal_folder, "verifyta_demo3_config.yaml")
+    weather_forecast_path = os.path.join(uppaal_folder, "demo3_weather_forecast.csv")
+    output_file_path = os.path.join(uppaal_folder, "demo3_result.txt")
     verifyta_command = "verifyta-stratego-8-11"
     insert_paths_in_uppaal_model(model_template_path, weather_forecast_path,
                                  os.path.join(uppaal_folder, "libtable.so"))
@@ -261,7 +284,7 @@ if __name__ == "__main__":
     action_variable = "Open"  # Name of the control variable.
     debug = True  # Whether to run in debug mode.
     period = 60  # Control period in time units (minutes).
-    horizon = 18  # How many periods to compute strategy for.
+    horizon = 6  # How many periods to compute strategy for.
     uncertainty = 0.1  # The uncertainty in the weather forecast generation.
 
     # Get model and learning config dictionaries from files.

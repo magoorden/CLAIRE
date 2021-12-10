@@ -38,6 +38,9 @@ def swmm_control(swmm_inputfile, orifice_id, basin_id, time_step, csv_file_basen
     # basin_total_evaporation = []
     # overflow = []
     rain = []
+    weather_forecast_low = []
+    weather_forecast_high = []
+    weather_forecast_int = []
     # subcatchment_total_rain = []
     # subcatchment_total_runoff = []
     # subcatchment_total_infiltration = []
@@ -104,6 +107,9 @@ def swmm_control(swmm_inputfile, orifice_id, basin_id, time_step, csv_file_basen
                                    f'and {rain_high} minutes.\n- The rain intensity will be '
                                    f'approximately {60*rain_int:.2f} mm/h.\n\nChosen control '
                                    f'setting: {1.75*orifice.target_setting:.2f}', size=22)
+        weather_forecast_low.append(rain_low)
+        weather_forecast_high.append(rain_high)
+        weather_forecast_int.append(rain_int)
 
         ax4.axis('off')
         plt.show()
@@ -150,6 +156,9 @@ def swmm_control(swmm_inputfile, orifice_id, basin_id, time_step, csv_file_basen
                           f'{rain_high} minutes.\n- The rain intensity will be approximately '
                           f'{60*rain_int:.2f} mm/h.\n\nChosen control setting: '
                           f'{1.75*orifice.target_setting:.2f}')
+            weather_forecast_low.append(rain_low)
+            weather_forecast_high.append(rain_high)
+            weather_forecast_int.append(rain_int)
             plt.pause(0.1)
 
             # orifice_flow.append(orifice.flow)
@@ -173,9 +182,13 @@ def swmm_control(swmm_inputfile, orifice_id, basin_id, time_step, csv_file_basen
     output_csv_file = os.path.join(dirname, csv_file_basename + "." + "csv")
     with open(output_csv_file, "w") as f:
         writer = csv.writer(f)
-        for i, j, k in zip(time_series, water_depth_basin1, orifice_settings):
+        writer.writerow(["time", "water_depth_basin1", "water_depth_basin2", "orifice_setting",
+                         "rain", "forecast_low", "forecast_high", "forecast_int"])
+        for i, j, k, l, m, n, o, p in zip(time_series, water_depth_basin1, water_depth_basin2,
+                                          orifice_settings, rain, weather_forecast_low,
+                                          weather_forecast_high, weather_forecast_int):
             i = i.strftime('%Y-%m-%d %H:%M')
-            writer.writerow([i, j, k])
+            writer.writerow([i, j, k, l, m, n, o, p])
 
 
 def get_control_strategy(current_water_level, current_time, controller, period, horizon,
