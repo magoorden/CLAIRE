@@ -313,7 +313,7 @@ def insert_paths_in_uppaal_model(uppaal_model, weather_forecast_path, libtable_p
         f.truncate()
 
 
-if __name__ == "__main__":
+def main():
     # First figure out where the swmm model file is located. This is also OS dependent.
     this_file = os.path.realpath(__file__)
     base_folder = os.path.dirname(os.path.dirname(this_file))
@@ -369,3 +369,7 @@ if __name__ == "__main__":
     swmm_control(swmm_inputfile, orifice_id, basin_id, time_step, swmm_results, controller,
                  period, horizon, rain_data_file, weather_forecast_path, uncertainty)
     print("procedure completed!")
+
+
+if __name__ == "__main__":
+    main()
