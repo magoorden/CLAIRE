@@ -15,7 +15,7 @@ clock S_UC = 0.0; // Water surface height urban catchment [cm]
 
 // Rain detention pond
 const int W = 200; // max water height [cm]
-clock w = 1.3974408894796941; // water level in pond [cm]
+clock w = 4.227602740509183; // water level in pond [cm]
 double wmax = 0.0; // max water level observed [cm]
 double Open = 1.0; // orifice relative diameter opening [-], will be properly initialized in Controller
 clock o = 0.0; // accumulated overflow time [min]

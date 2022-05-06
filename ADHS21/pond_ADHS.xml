@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.1//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_2.dtd'>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.5//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_5.dtd'>
 <nta>
 	<declaration>// Global time. One time unit in Uppaal represents 1 minute
 const int m = 1; // 1 minute = 1 time unit
@@ -89,7 +89,7 @@ clock x = 0.0; // control switching clock</declaration>
 			<urgent/>
 		</location>
 		<init ref="id4"/>
-		<transition>
+		<transition id="id6">
 			<source ref="id5"/>
 			<target ref="id3"/>
 			<label kind="select" x="17" y="-102">i:int[0,C-1]</label>
@@ -97,12 +97,12 @@ clock x = 0.0; // control switching clock</declaration>
 			<nail x="102" y="-59"/>
 			<nail x="0" y="-59"/>
 		</transition>
-		<transition controllable="false">
+		<transition id="id7" controllable="false">
 			<source ref="id3"/>
 			<target ref="id5"/>
 			<label kind="guard" x="34" y="8">x==P</label>
 		</transition>
-		<transition>
+		<transition id="id8">
 			<source ref="id4"/>
 			<target ref="id3"/>
 			<label kind="select" x="-127" y="-17">i:int[0,C-1]</label>
@@ -135,18 +135,18 @@ double uniform(double lower, double upper)
     double sample = random(distance);
     return lower + sample;
 }</declaration>
-		<location id="id6" x="-153" y="-8">
+		<location id="id9" x="-153" y="-8">
 			<name x="-204" y="-17">Dry</name>
 			<label kind="invariant" x="-221" y="8">d &lt;= dryU[i]</label>
 		</location>
-		<location id="id7" x="17" y="-8">
+		<location id="id10" x="17" y="-8">
 			<name x="34" y="-25">Raining</name>
 			<label kind="invariant" x="25" y="0">d &lt;= rainU[i]</label>
 		</location>
-		<init ref="id6"/>
-		<transition controllable="false">
-			<source ref="id7"/>
-			<target ref="id6"/>
+		<init ref="id9"/>
+		<transition id="id11" controllable="false">
+			<source ref="id10"/>
+			<target ref="id9"/>
 			<label kind="guard" x="-119" y="34">d &gt;= rainL[i]</label>
 			<label kind="assignment" x="-119" y="51">d = 0,
 i++,
@@ -154,9 +154,9 @@ rain = 0.0</label>
 			<nail x="-8" y="34"/>
 			<nail x="-127" y="34"/>
 		</transition>
-		<transition controllable="false">
-			<source ref="id6"/>
-			<target ref="id7"/>
+		<transition id="id12" controllable="false">
+			<source ref="id9"/>
+			<target ref="id10"/>
 			<label kind="guard" x="-119" y="-102">d &gt;= dryL[i]</label>
 			<label kind="assignment" x="-119" y="-85">d = 0,
 rain = rainmax[i]*uniform(1 - e, 1 + e)</label>
@@ -168,7 +168,7 @@ rain = rainmax[i]*uniform(1 - e, 1 + e)</label>
 	<queries>
 		<query>
 			<formula>// Random control</formula>
-			<comment></comment>
+			<comment/>
 		</query>
 		<query>
 			<formula>simulate 10 [&lt;=72*h] {w}</formula>
@@ -181,12 +181,12 @@ rain = rainmax[i]*uniform(1 - e, 1 + e)</label>
 0.5 to speed up calculation.</comment>
 		</query>
 		<query>
-			<formula></formula>
-			<comment></comment>
+			<formula/>
+			<comment/>
 		</query>
 		<query>
 			<formula>// Optimal control</formula>
-			<comment></comment>
+			<comment/>
 		</query>
 		<query>
 			<formula>strategy opt = minE (c) [&lt;=72*h]: &lt;&gt; (t==72*h &amp;&amp; o &lt;= 0)</formula>
