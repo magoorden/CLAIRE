@@ -5,7 +5,7 @@
 *.out
 *.rpt
 
-scripts/__pycache__/
+**/__pycache__/
 
 uppaal/weather_forecast.csv
 
