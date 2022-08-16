@@ -9,7 +9,7 @@ clock t; // global time [min]
 // Urban catchment
 const double UC_k = 0.25; // Urban surface resevoir reaction factor [cm/min * 1 / cm] = [cm/(min*cm)]
 const double A_UC = 37.0 * 10000.0 * 10000.0; // urban area catchment [cm2], 1 ha = 10000 m2, 1 m2 = 10000 cm2
-const int S_max = 10; // Reasonable estimate of the maximum value of S_UC.
+const int S_max = 1; // Reasonable estimate of the maximum value of S_UC.
 const double S_init = 0.0; // Cannot use S_UC in other initializations, see https://github.com/UPPAALModelChecker/UPPAAL-Meta/issues/38.
 int[-2147483647, 2147483647] rain = 0; // Rainfall [cm/min]
 hybrid clock S_UC = S_init; // Water surface height urban catchment [cm]
