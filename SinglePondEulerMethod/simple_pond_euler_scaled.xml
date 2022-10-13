@@ -185,7 +185,7 @@ o' == overflow()</label>
 	<template>
 		<name>CostFunction</name>
 		<location id="id1" x="0" y="0">
-			<label kind="invariant" x="-42" y="17">c' == 1 - w / W</label>
+			<label kind="invariant" x="-42" y="17">c' == 1 - w / W + 1000 * pow(w/W, 20)</label>
 		</location>
 		<init ref="id1"/>
 	</template>
