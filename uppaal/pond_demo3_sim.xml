@@ -296,7 +296,7 @@ rainLoc = 1</label>
 			<comment/>
 		</query>
 		<query>
-			<formula>strategy opt = minE (c) [&lt;=72*h]: &lt;&gt; (t==72*h &amp;&amp; o &lt;= 0)</formula>
+			<formula>strategy opt = minE (c) [&lt;=72*h]: &lt;&gt; (t==72*h)</formula>
 			<comment>Notice that with o being monotonically increasing, the []o &lt;= 0 equals &lt;&gt;o &lt;= 0. Therefore, we can combine the synthesis 
 of a safe and optimal strategy a single query.
 Set in options -&gt; statistical parameters the 'discretization step for hybrid systems' to 
@@ -321,28 +321,6 @@ Set in options -&gt; statistical parameters the 'discretization step for hybrid 
 			<formula>//simulate 10 [&lt;=72*h] {w} under opt</formula>
 			<comment>Set in options -&gt; statistical parameters the 'discretization step for hybrid systems' to 
 0.5 to speed up calculation.</comment>
-		</query>
-		<query>
-			<formula>strategy opt = minE (c) [&lt;=6*60]: &lt;&gt; (t==360.0 &amp;&amp; o &lt;= 0)</formula>
-			<comment/>
-			<result outcome="success" type="quality" timestamp="2022-02-22 11:01:40 +0100">
-				<option key="--total-runs" value="50"/>
-				<option key="--discretization" value="0.5"/>
-				<option key="--good-runs" value="20"/>
-				<option key="--eval-runs" value="10"/>
-				<option key="--runs-pr-state" value="10"/>
-			</result>
-		</query>
-		<query>
-			<formula>saveStrategy("pondDemo3.json", opt)</formula>
-			<comment/>
-			<result outcome="success" type="quality" timestamp="2022-02-22 11:02:05 +0100">
-				<option key="--total-runs" value="50"/>
-				<option key="--discretization" value="0.5"/>
-				<option key="--good-runs" value="20"/>
-				<option key="--eval-runs" value="10"/>
-				<option key="--runs-pr-state" value="10"/>
-			</result>
 		</query>
 	</queries>
 </nta>

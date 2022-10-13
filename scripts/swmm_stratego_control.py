@@ -276,7 +276,7 @@ def main():
     learning_config_path = os.path.join(uppaal_folder, "verifyta_demo3_config.yaml")
     weather_forecast_path = os.path.join(uppaal_folder, "demo3_weather_forecast.csv")
     output_file_path = os.path.join(uppaal_folder, "demo3_result.txt")
-    verifyta_command = "verifyta-stratego-8-11"
+    verifyta_command = "verifyta-stratego-9"
     insert_paths_in_uppaal_model(model_template_path, weather_forecast_path,
                                  os.path.join(uppaal_folder, "libtable.so"))
 

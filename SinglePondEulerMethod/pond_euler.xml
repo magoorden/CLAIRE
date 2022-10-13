@@ -83,7 +83,7 @@ const double OSL = UC_k * (sqrt(A_p * A_p + A_UC * A_UC) - A_p) / (2 * A_p); // 
 
 // Instead of explicitly writing down all modes, we implemented the C0F as a funtion depending on rain and Qout for the next interval.
 double C0F(){
-    return LIP * (sqrt(rain * rain + (Qout / A_p) * (Qout / A_p)) + UC_k * S_max * sqrt(1 + (A_UC / A_p) * (A_UC / A_p)));
+    return LIP * sqrt(pow(rain - UC_k * S_max, 2) + pow(UC_k * S_max * A_UC / A_p - Qout / A_p, 2));
 }
 
 // The linear approximation error evolution function (Definition 3).
