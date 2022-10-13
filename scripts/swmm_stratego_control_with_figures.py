@@ -241,7 +241,7 @@ class MPCSetupPond(sutil.SafeMPCSetup):
 
         Overrides SafeMPCsetup.create_query_file().
         """
-        with open(self.queryfile, "w") as f:
+        with open(self.query_file, "w") as f:
             line1 = f"strategy opt = minE (c) [<={horizon}*{period}]: <> (t=={final} && o <= 0)\n"
             f.write(line1)
             f.write("\n")
@@ -256,7 +256,7 @@ class MPCSetupPond(sutil.SafeMPCSetup):
 
         Overrides SafeMPCsetup.create_alternative_query_file().
         """
-        with open(self.queryfile, "w") as f:
+        with open(self.query_file, "w") as f:
             line1 = f"strategy opt = minE (wmax) [<={horizon}*{period}]: <> (t=={final})\n"
             f.write(line1)
             f.write("\n")
@@ -359,7 +359,7 @@ def main():
         learning_cfg_dict = yaml.safe_load(yamlfile)
 
     # Construct the MPC object.
-    controller = MPCSetupPond(model_template_path, output_file_path, queryfile=query_file_path,
+    controller = MPCSetupPond(model_template_path, output_file_path, query_file=query_file_path,
                               model_cfg_dict=model_cfg_dict,
                               learning_args=learning_cfg_dict,
                               verifyta_command=verifyta_command,
