@@ -15,7 +15,7 @@ START_DATE           09/05/2019
 START_TIME           00:00:00
 REPORT_START_DATE    09/05/2019
 REPORT_START_TIME    00:00:00
-END_DATE             09/10/2019
+END_DATE             09/24/2019
 END_TIME             00:00:00
 SWEEP_START          01/01
 SWEEP_END            01/01
@@ -78,9 +78,9 @@ S_Upstream       3.0        0.5        4          7          0
 [JUNCTIONS]
 ;;Name           Elevation  MaxDepth   InitDepth  SurDepth   Aponded   
 ;;-------------- ---------- ---------- ---------- ---------- ----------
-J1               7.5        0          0.2        0          0         
-J2               6.75       0          0.2        0          0         
-J3               6          0          0.2        0          0         
+J1               7.5        0          0.0        0          0
+J2               6.75       0          0.0        0          0
+J3               6          0          0.0        0          0
 J4               5.5        0          0.2        0          0         
 J5               0          0          0.2        0          0         
 

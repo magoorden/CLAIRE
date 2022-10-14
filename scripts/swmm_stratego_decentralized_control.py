@@ -36,7 +36,7 @@ def swmm_control(swmm_inputfile, orifice_id, basin_id, time_step, csv_file_basen
         sys.stdout.write('\n')
         i = 0
         interval = sim.end_time - sim.start_time
-        duration = interval.total_seconds() / 3600
+        duration = interval.total_seconds() / time_step
         print_progress_bar(i, duration, "progress")
         sus = []
         orifices = []
