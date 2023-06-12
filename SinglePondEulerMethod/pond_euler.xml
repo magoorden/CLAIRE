@@ -1,0 +1,684 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.5//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_5.dtd'>
+<nta>
+	<declaration>// Global time. One time unit in Uppaal represents 1 minute
+const int m = 1; // 1 minute = 1 time unit
+const int h = 60*m; // 1 hour = 60 minutes
+clock t; // global time [min]
+
+// Scaling factor for the dimension of the water height
+const int factor = 1000;
+
+// Rain
+const double rainmax[6] = {0.01333, 0.03478, 0.02545, 0.02308, 0.00952, 0.0}; // rain intensity [cm/min], 1 mm/min = 0.1 cm/min
+int interval = 0;
+const double e = 0.1; // rain uncertainty factor.
+const double sample_factor = 10.0 / e; 
+int sample = 0;
+int raining = 0;
+int[-2147483647, 2147483647] rain = 0; // Rainfall [cm/min]
+hybrid clock rain_hyb = 0.0; 
+
+// Urban catchment
+const double UC_k = 0.25; // Urban surface resevoir reaction factor [cm/min * 1 / cm] = [cm/(min*cm)]
+const double A_UC = 37.0 * 10000.0 * 10000.0; // urban area catchment [cm2], 1 ha = 10000 m2, 1 m2 = 10000 cm2
+const int[-2147483647, 2147483647] S_max = factor / 10; // Reasonable estimate of the maximum value of S_UC.
+const double S_init = 0.0; // Cannot use S_UC in other initializations, see https://github.com/UPPAALModelChecker/UPPAAL-Meta/issues/38.
+hybrid clock S_UC = S_init; // Water surface height urban catchment [cm]
+
+// Rain detention pond
+const int W = 300 * factor; // max water height [cm]
+const double A_p = 5572 * 10000.0; // pond area [cm2], 1 m2 = 10000 cm2
+const double A_UCA_P = A_UC / A_p; // [-]
+const double A_UCA_PScaled = A_UCA_P * factor; // [10E-3 -]
+const double w_init = 100.0 * factor ; // Cannot use w in other initializations, see https://github.com/UPPAALModelChecker/UPPAAL-Meta/issues/38.
+hybrid clock w = 100.0; // water level in pond [cm]
+int[-2147483647, 2147483647] Qout = 0; // pond outflow [cm3/min], will be properly initialized in Controller
+hybrid clock Qout_hyb = 0.0; // pond outflow [cm3/min], will be properly initialized in Controller
+hybrid clock o = 0.0; // accumelated overflow time [min]
+
+// Controller
+const double Qomax = 60.0 * 95000.0; // max outflow [cm3/min], 95000 cm3/s = 95 l/s
+const double QomaxAp = Qomax / A_p; // [cm/min]
+const double QomaxApScaled = QomaxAp * factor; // [10E-3 cm/min]
+const double Qoutv[3] = {(1.0/6.0)*QomaxApScaled, (4.0/6.0)*QomaxApScaled, (6.0/6.0)*QomaxApScaled}; // outflow modes [10E-3 cm/min]
+int option = 0;
+
+// Cost function
+hybrid clock c = 0.0; // cost function [-]
+
+// -------------------------------
+// Below is everything for the Euler-based integer approximations.
+
+// Euler interpretation constants.
+const int tau = 1; // Euler step size [min].
+const int euler_sub_step = 30; // Number of substeps [-].
+const double h_tau = (tau * 1.0)/euler_sub_step; // Euler substep size [min]. In theory this variable is called h, but h is already used for hour in this model. tau multiplied by 1.0 to force a double result.
+
+// Channels to synchornize rain and control switches with the Euler steps.
+broadcast chan chooseRain;
+broadcast chan chooseControl;
+
+// Get the integer floor.
+int[-2147483647, 2147483647] flo(double d){
+    return fint(floor(d));
+}
+
+// Get the integer ceil.
+int[-2147483647, 2147483647] cei(double d){
+    return fint(ceil(d));
+}
+
+// Global integer water level variables.
+int[-2147483647, 2147483647] waterLevel_gua[2] = {fint(w_init), fint(w_init)}; // minimum lower and maximum upper bound during next interfall
+int[-2147483647, 2147483647] waterLevel_gua_evol[2] = {fint(w_init), fint(w_init)}; // lower and upper bound at end next interfall
+
+// Global integer urban catchment variables.
+int[-2147483647, 2147483647] urbanCatchment_gua[2] = {fint(S_init), fint(S_init)}; // minimum lower and maximum upper bound during next interfall
+int[-2147483647, 2147483647] urbanCatchment_gua_evol[2] = {fint(S_init), fint(S_init)}; // lower and upper bound at end next interfall
+
+// Lipschitz and Lipschitz-based constants.
+const double LIP = UC_k * sqrt(A_p * A_p + A_UC * A_UC) / A_p; // L_j
+const double OSL = UC_k * (sqrt(A_p * A_p + A_UC * A_UC) - A_p) / (2 * A_p); // lambda_j
+
+// Instead of explicitly writing down all modes, we implemented the C0F as a funtion depending on rain and Qout for the next interval.
+double C0F(){
+    return LIP * sqrt(pow(rain - UC_k * S_max, 2) + pow(UC_k * S_max * A_UC / A_p - Qout / A_p, 2));
+}
+
+// The linear approximation error evolution function (Definition 3).
+// Simplified for our example, as OSL &gt; 0 for all modes.
+double delta_mode(double rho){
+    return sqrt(rho*rho*exp(3*OSL*h_tau) + C0F()*C0F()/(3*OSL*OSL)*(-h_tau*h_tau - 2*h_tau/(3*OSL) + 2/(9*OSL*OSL)*(exp(3*OSL*h_tau)-1)));
+}
+
+// Get the minimal value.
+double mini(double d1, double d2){
+    if(d1 &lt; d2){return d1;}
+    else{return d2;}
+}
+
+// Get the maximum value.
+double maxi(double d1, double d2){
+    if(d1 &lt; d2){return d2;}
+    else{return d1;}
+}
+
+// Perform euler approximations for a single period.
+void eulerDiscrete(){
+    double waterLevel, urbanCatchment, rho;
+    double mem_waterLevel_min, mem_waterLevel_max, mem_urbanCatchment_min, mem_urbanCatchment_max;
+
+    int i;
+    
+    // Initialize values. 
+    urbanCatchment = (urbanCatchment_gua_evol[0] + urbanCatchment_gua_evol[1])/2;
+    waterLevel = (waterLevel_gua_evol[0] + waterLevel_gua_evol[1])/2;
+    rho = sqrt((urbanCatchment_gua_evol[1]-urbanCatchment_gua_evol[0])*(urbanCatchment_gua_evol[1]-urbanCatchment_gua_evol[0])/4 
+                + (waterLevel_gua_evol[1]-waterLevel_gua_evol[0])*(waterLevel_gua_evol[1]-waterLevel_gua_evol[0])/4);
+
+    mem_urbanCatchment_min = urbanCatchment - rho;
+    mem_urbanCatchment_max = urbanCatchment + rho;
+    mem_waterLevel_min = waterLevel - rho;
+    mem_waterLevel_max = waterLevel + rho;
+ //   /*
+    // Perform the sub steps (Equations 17 and 19).
+    for (i=0; i&lt;=euler_sub_step - 1; i++){
+        urbanCatchment = urbanCatchment + h_tau * (rain - UC_k * urbanCatchment);
+        waterLevel = waterLevel + h_tau * (UC_k * A_UC * urbanCatchment / A_p - Qout / A_p);
+        rho = delta_mode(rho);
+
+        mem_urbanCatchment_min = mini(mem_urbanCatchment_min,urbanCatchment - rho);
+        mem_urbanCatchment_max = maxi(mem_urbanCatchment_max,urbanCatchment + rho);
+        mem_waterLevel_min = mini(mem_waterLevel_min,waterLevel - rho);
+        mem_waterLevel_max = maxi(mem_waterLevel_max,waterLevel + rho);  
+    }
+//    */
+    // Convert final values to integers.
+    urbanCatchment_gua[0] = flo(mem_urbanCatchment_min);
+    urbanCatchment_gua[1] = cei(mem_urbanCatchment_max);
+    waterLevel_gua[0] = flo(mem_waterLevel_min);
+    waterLevel_gua[1] = cei(mem_waterLevel_max);
+}
+
+// Calculate the discrete time solution after a single period (Equation 5).
+void updateDiscrete(){
+    urbanCatchment_gua_evol[0] = flo(rain / UC_k + (urbanCatchment_gua_evol[0] - rain / UC_k) * exp(- UC_k * t));
+    urbanCatchment_gua_evol[1] = cei(rain / UC_k + (urbanCatchment_gua_evol[1] - rain / UC_k) * exp(- UC_k * t));
+    waterLevel_gua_evol[0] = flo(waterLevel_gua_evol[0] + (rain * A_UC - Qout) * tau / A_p + A_UC / A_p * (urbanCatchment_gua_evol[0] - rain / UC_k) * (1 - exp(-UC_k * tau)));
+    waterLevel_gua_evol[1] = cei(waterLevel_gua_evol[1] + (rain * A_UC - Qout) * tau / A_p + A_UC / A_p * (urbanCatchment_gua_evol[1] - rain / UC_k) * (1 - exp(-UC_k * tau)));
+    
+/* In next model improvement, add bounds to urbanCatchment and waterLevel similar to what has been done below.
+    if (distance_gua_evol[0] &gt; maxSensorDistance) {
+        distance_gua_evol[0] = maxSensorDistance + 1;
+        distance_gua_evol[1] = maxSensorDistance + 1;
+    } else {
+        distance_gua_evol[0] = distance_gua_evol[0] + (velocityFront_gua_evol[0]-accelerationFront) - (velocityEgo_gua_evol[0]-accelerationEgo) + (accelerationFront - accelerationEgo)/2;// - (oldVel + newVel)/2;
+        distance_gua_evol[1] = distance_gua_evol[1] + (velocityFront_gua_evol[0]-accelerationFront) - (velocityEgo_gua_evol[0]-accelerationEgo) + (accelerationFront - accelerationEgo)/2;//(oldVel + newVel)/2;
+
+        if (distance_gua_evol[1] &gt; maxSensorDistance) {
+        distance_gua_evol[1] = maxSensorDistance + 1;
+        }
+    }
+*/
+}
+
+
+</declaration>
+	<template>
+		<name>Pond</name>
+		<declaration>// We assume as pond geometry an inverted pyramid with square base, where the base is the surface of the permanent water level. 
+// H represents the height of the pyramid, L represents the area of the pyramid.
+const double H = 1000000.0; // pond geometry H [cm]
+const double L = 7464.5; // pond geometry L [cm], 7464.5 -&gt; 5572 m2 area
+
+// Flow from urban catchment to pond. Eq. 2 in paper.
+double Qin()
+{
+    return S_UC * UC_k * A_UCA_P;
+}
+
+// Dynamics of the water level. Eqs. 4 and 5 in the paper combined.
+double pond_dynamics()
+{
+    if (w &lt;= 0 &amp;&amp; Qin() &lt;= Qout) return 0;
+
+    else if (w &gt;= W / factor &amp;&amp; Qin() &gt;= Qout) return 0; 
+
+    else return Qin() - Qout_hyb;
+}
+
+// Cummulative overflow duration. Eq. 6 in the paper.
+double overflow()
+{
+    const double epsilon = 0.1; // for numerical precision 
+    if (w &gt;= W / factor - epsilon) return 1.0;
+    
+    else return 0.0;
+}</declaration>
+		<location id="id0" x="0" y="0">
+			<label kind="invariant" x="-76" y="17">w' == pond_dynamics() &amp;&amp;
+o' == overflow()</label>
+		</location>
+		<init ref="id0"/>
+	</template>
+	<template>
+		<name>CostFunction</name>
+		<location id="id1" x="0" y="0">
+			<label kind="invariant" x="-42" y="17">c' == 1 - w / W</label>
+		</location>
+		<init ref="id1"/>
+	</template>
+	<template>
+		<name>UrbanCatchment</name>
+		<location id="id2" x="0" y="0">
+			<label kind="invariant" x="-85" y="17">S_UC' == rain - (S_UC * UC_k)</label>
+		</location>
+		<init ref="id2"/>
+	</template>
+	<template>
+		<name>Controller</name>
+		<declaration>const int P = h; // control switching period [min]
+const int C = 3; // number of control modes
+const int Qoutv[C] = {fint((1.0/6.0)*QomaxApScaled), fint((4.0/6.0)*QomaxApScaled), fint((6.0/6.0)*QomaxApScaled)}; // outflow modes [10E-3 cm/min]
+const double Qoutv_hyb[C] = {(1.0/6.0)*QomaxAp, (4.0/6.0)*QomaxAp, (6.0/6.0)*QomaxAp}; // outflow modes [cm/min]
+
+clock x = 0.0; // control switching clock</declaration>
+		<location id="id3" x="93" y="0">
+			<label kind="invariant" x="110" y="-25">x &lt;= P &amp;&amp;
+Qout_hyb' == 0</label>
+			<label kind="comments" x="-281" y="136">If the invariant of this loction is violated, it means that the control switching period is not devisable by the Euler 
+method period.</label>
+		</location>
+		<location id="id4" x="-178" y="0">
+			<committed/>
+		</location>
+		<location id="id5" x="238" y="0">
+			<committed/>
+		</location>
+		<location id="id6" x="93" y="102">
+			<committed/>
+		</location>
+		<location id="id7" x="-340" y="0">
+			<label kind="invariant" x="-365" y="17">Qout_hyb' == 0</label>
+		</location>
+		<init ref="id7"/>
+		<transition id="id8" controllable="false">
+			<source ref="id7"/>
+			<target ref="id4"/>
+			<label kind="synchronisation" x="-314" y="-25">chooseControl?</label>
+		</transition>
+		<transition id="id9" controllable="false">
+			<source ref="id6"/>
+			<target ref="id3"/>
+			<label kind="guard" x="17" y="59">x &lt; P</label>
+			<nail x="68" y="76"/>
+			<nail x="68" y="42"/>
+		</transition>
+		<transition id="id10" controllable="false">
+			<source ref="id6"/>
+			<target ref="id5"/>
+			<label kind="guard" x="127" y="102">x == P</label>
+			<nail x="238" y="102"/>
+		</transition>
+		<transition id="id11" controllable="false">
+			<source ref="id3"/>
+			<target ref="id6"/>
+			<label kind="synchronisation" x="101" y="42">chooseControl?</label>
+		</transition>
+		<transition id="id12">
+			<source ref="id5"/>
+			<target ref="id3"/>
+			<label kind="select" x="110" y="-136">i:int[0,C-1]</label>
+			<label kind="assignment" x="93" y="-119">x = 0, option = i,
+Qout = fint(Qoutv[i]),
+Qout_hyb = Qoutv_hyb[i]</label>
+			<nail x="238" y="-59"/>
+			<nail x="93" y="-59"/>
+		</transition>
+		<transition id="id13">
+			<source ref="id4"/>
+			<target ref="id3"/>
+			<label kind="select" x="-127" y="-17">i:int[0,C-1]</label>
+			<label kind="assignment" x="-144" y="0">option = i,
+Qout=fint(Qoutv[i]),
+Qout_hyb = Qoutv_hyb[i]</label>
+		</transition>
+	</template>
+	<template>
+		<name>Rain</name>
+		<declaration>const int I = 6; // number of intervals. Simulation should finish before the last period is over. Therefore, last period is a large dummy period.
+int i = 0; // current interval index
+
+// Exact values =&gt; const int dryL[I] = {233*m, 71*m, 1529*m, 187*m, 226*m, 24*h};
+const int dryL[I] = {210*m, 64*m, 1376*m, 168*m, 203*m, 24*h}; // lower bound duration dry period [min]
+const int dryU[I] = {256*m, 78*m, 1682*m, 206*m, 249*m, 24*h}; // upper bound duration dry period [min]
+
+// Exact values =&gt; const int rainL[I] = {30*m, 23*m, 55*m, 26*m, 231*m, 24*h};
+const int rainL[I] = {27*m, 21*m, 49*m, 23*m, 208*m, 24*h}; // lower bound duration raining period [min]
+const int rainU[I] = {33*m, 25*m, 61*m, 29*m, 254*m, 24*h}; // upper bound duration raining period [min]
+
+
+
+clock d = 0.0; // duration of dry or raining period [min]
+
+// Returns a sample from a uniform distribution between lower and upper.
+double uniform(double lower, double upper)
+{
+    double distance = upper - lower;
+    double sample = random(distance);
+    return lower + sample;
+}</declaration>
+		<location id="id14" x="-153" y="-8">
+			<name x="-204" y="-17">Dry</name>
+			<label kind="invariant" x="-280" y="8">d &lt;= dryU[i] &amp;&amp;
+rain_hyb' == 0</label>
+		</location>
+		<location id="id15" x="17" y="-8">
+			<name x="34" y="-25">Raining</name>
+			<label kind="invariant" x="42" y="-8">d &lt;= rainU[i] &amp;&amp;
+rain_hyb' == 0</label>
+		</location>
+		<location id="id16" x="-153" y="-119">
+			<committed/>
+		</location>
+		<location id="id17" x="17" y="119">
+			<committed/>
+		</location>
+		<init ref="id14"/>
+		<transition id="id18" controllable="false">
+			<source ref="id17"/>
+			<target ref="id14"/>
+			<label kind="guard" x="-136" y="17">i == I - 1 &amp;&amp; d &gt;= rainL[i]</label>
+			<label kind="assignment" x="-136" y="34">d = 0,
+raining = 0,
+rain = 0,
+rain_hyb = 0</label>
+		</transition>
+		<transition id="id19" controllable="false">
+			<source ref="id17"/>
+			<target ref="id14"/>
+			<label kind="guard" x="-221" y="119">i + 1 &lt; I &amp;&amp; d &gt;= rainL[i]</label>
+			<label kind="assignment" x="-136" y="136">d = 0,
+raining = 0,
+i++,
+interval++,
+rain = 0,
+rain_hyb = 0.0</label>
+			<nail x="-153" y="119"/>
+		</transition>
+		<transition id="id20" controllable="false">
+			<source ref="id17"/>
+			<target ref="id15"/>
+			<label kind="guard" x="68" y="68">d &lt;= rainU[i] - tau</label>
+			<nail x="59" y="93"/>
+			<nail x="59" y="42"/>
+		</transition>
+		<transition id="id21" controllable="false">
+			<source ref="id15"/>
+			<target ref="id17"/>
+			<label kind="synchronisation" x="-51" y="34">chooseRain?</label>
+		</transition>
+		<transition id="id22" controllable="false">
+			<source ref="id16"/>
+			<target ref="id14"/>
+			<label kind="guard" x="-348" y="-76">d &lt;= dryU[i] - tau</label>
+			<nail x="-195" y="-85"/>
+			<nail x="-195" y="-42"/>
+		</transition>
+		<transition id="id23" controllable="false">
+			<source ref="id16"/>
+			<target ref="id15"/>
+			<label kind="guard" x="-127" y="-246">d &gt;= dryL[i]</label>
+			<label kind="assignment" x="-127" y="-221">d = 0,
+raining = 1,
+sample = fint(sample_factor * uniform(1 - e, 1 + e)),
+rain_hyb = rainmax[i] * sample / sample_factor,
+rain = fint(rainmax[i] * factor * sample / sample_factor)</label>
+			<nail x="17" y="-119"/>
+		</transition>
+		<transition id="id24" controllable="false">
+			<source ref="id14"/>
+			<target ref="id16"/>
+			<label kind="synchronisation" x="-144" y="-76">chooseRain?</label>
+		</transition>
+	</template>
+	<template>
+		<name>EulerMethod</name>
+		<declaration>clock waitTimer = 0.0;</declaration>
+		<location id="id25" x="-255" y="-25">
+			<urgent/>
+		</location>
+		<location id="id26" x="-85" y="-25">
+			<urgent/>
+		</location>
+		<location id="id27" x="93" y="-25">
+			<urgent/>
+		</location>
+		<location id="id28" x="-76" y="51">
+			<name x="-93" y="17">Wait</name>
+			<label kind="invariant" x="-136" y="68">waitTimer &lt;= tau</label>
+		</location>
+		<init ref="id25"/>
+		<transition id="id29" controllable="false">
+			<source ref="id28"/>
+			<target ref="id25"/>
+			<label kind="guard" x="-306" y="8">waitTimer &gt;= tau</label>
+		</transition>
+		<transition id="id30" controllable="false">
+			<source ref="id27"/>
+			<target ref="id28"/>
+			<label kind="assignment" x="8" y="17">waitTimer = 0</label>
+		</transition>
+		<transition id="id31" controllable="false">
+			<source ref="id26"/>
+			<target ref="id27"/>
+			<label kind="synchronisation" x="-51" y="-51">chooseControl!</label>
+			<nail x="-68" y="-25"/>
+		</transition>
+		<transition id="id32" controllable="false">
+			<source ref="id25"/>
+			<target ref="id26"/>
+			<label kind="synchronisation" x="-221" y="-51">chooseRain!</label>
+		</transition>
+	</template>
+	<system>system Pond, Rain, Controller, CostFunction, UrbanCatchment, EulerMethod;</system>
+	<queries>
+		<query>
+			<formula>// Random control</formula>
+			<comment/>
+		</query>
+		<query>
+			<formula>simulate 1 [&lt;=72*h] {Qoutv[option], Qout_hyb * factor}</formula>
+			<comment>Set in options -&gt; statistical parameters the 'discretization step for hybrid systems' to 
+0.5 to speed up calculation.</comment>
+			<result outcome="success" type="quality" timestamp="2022-08-16 13:52:26 +0200">
+				<plot title="Simulations (1)" xaxis="time" yaxis="value">
+					<series title="Qoutv[option]" type="l" color="0xff0000" encoding="csv">0.0,0.01704953338119167
+1.0,0.06819813352476668
+60.0,0.06819813352476668
+61.0,0.10229720028715
+180.0,0.10229720028715
+181.0,0.06819813352476668
+300.0,0.06819813352476668
+301.0,0.01704953338119167
+360.0,0.01704953338119167
+361.0,0.06819813352476668
+480.0,0.06819813352476668
+481.0,0.10229720028715
+540.0,0.10229720028715
+541.0,0.06819813352476668
+600.0,0.06819813352476668
+601.0,0.01704953338119167
+660.0,0.01704953338119167
+661.0,0.10229720028715
+720.0,0.10229720028715
+721.0,0.06819813352476668
+780.0,0.06819813352476668
+781.0,0.01704953338119167
+840.0,0.01704953338119167
+841.0,0.10229720028715
+900.0,0.10229720028715
+901.0,0.06819813352476668
+960.0,0.06819813352476668
+961.0,0.01704953338119167
+1020.0,0.01704953338119167
+1021.0,0.06819813352476668
+1080.0,0.06819813352476668
+1081.0,0.10229720028715
+1140.0,0.10229720028715
+1141.0,0.01704953338119167
+1320.0,0.01704953338119167
+1321.0,0.06819813352476668
+1380.0,0.06819813352476668
+1381.0,0.01704953338119167
+1500.0,0.01704953338119167
+1501.0,0.10229720028715
+1560.0,0.10229720028715
+1561.0,0.01704953338119167
+1620.0,0.01704953338119167
+1621.0,0.06819813352476668
+1740.0,0.06819813352476668
+1741.0,0.10229720028715
+1800.0,0.10229720028715
+1801.0,0.06819813352476668
+1860.0,0.06819813352476668
+1861.0,0.01704953338119167
+1920.0,0.01704953338119167
+1921.0,0.10229720028715
+1980.0,0.10229720028715
+1981.0,0.06819813352476668
+2040.0,0.06819813352476668
+2041.0,0.10229720028715
+2220.0,0.10229720028715
+2221.0,0.06819813352476668
+2340.0,0.06819813352476668
+2341.0,0.01704953338119167
+2400.0,0.01704953338119167
+2401.0,0.10229720028715
+2520.0,0.10229720028715
+2521.0,0.01704953338119167
+2580.0,0.01704953338119167
+2581.0,0.06819813352476668
+2820.0,0.06819813352476668
+2821.0,0.10229720028715
+2880.0,0.10229720028715
+2881.0,0.06819813352476668
+3060.0,0.06819813352476668
+3061.0,0.10229720028715
+3180.0,0.10229720028715
+3181.0,0.01704953338119167
+3300.0,0.01704953338119167
+3301.0,0.06819813352476668
+3360.0,0.06819813352476668
+3361.0,0.10229720028715
+3420.0,0.10229720028715
+3421.0,0.01704953338119167
+3540.0,0.01704953338119167
+3541.0,0.10229720028715
+3600.0,0.10229720028715
+3601.0,0.06819813352476668
+3720.0,0.06819813352476668
+3721.0,0.01704953338119167
+3960.0,0.01704953338119167
+3961.0,0.06819813352476668
+4020.0,0.06819813352476668
+4021.0,0.10229720028715
+4080.0,0.10229720028715
+4081.0,0.06819813352476668
+4140.0,0.06819813352476668
+4141.0,0.10229720028715
+4200.0,0.10229720028715
+4201.0,0.01704953338119167
+4260.0,0.01704953338119167
+4261.0,0.06819813352476668
+4320.0,0.06819813352476668
+4320.000002,0.01704953338119167
+					</series>
+					<series title="Qout_hyb * factor" type="l" color="0x00ffff" encoding="csv">0.0,0.0
+1.0,0.06819813352476668
+60.0,0.06819813352476668
+61.0,0.10229720028715
+180.0,0.10229720028715
+181.0,0.06819813352476668
+300.0,0.06819813352476668
+301.0,0.01704953338119167
+360.0,0.01704953338119167
+361.0,0.06819813352476668
+480.0,0.06819813352476668
+481.0,0.10229720028715
+540.0,0.10229720028715
+541.0,0.06819813352476668
+600.0,0.06819813352476668
+601.0,0.01704953338119167
+660.0,0.01704953338119167
+661.0,0.10229720028715
+720.0,0.10229720028715
+721.0,0.06819813352476668
+780.0,0.06819813352476668
+781.0,0.01704953338119167
+840.0,0.01704953338119167
+841.0,0.10229720028715
+900.0,0.10229720028715
+901.0,0.06819813352476668
+960.0,0.06819813352476668
+961.0,0.01704953338119167
+1020.0,0.01704953338119167
+1021.0,0.06819813352476668
+1080.0,0.06819813352476668
+1081.0,0.10229720028715
+1140.0,0.10229720028715
+1141.0,0.01704953338119167
+1320.0,0.01704953338119167
+1321.0,0.06819813352476668
+1380.0,0.06819813352476668
+1381.0,0.01704953338119167
+1500.0,0.01704953338119167
+1501.0,0.10229720028715
+1560.0,0.10229720028715
+1561.0,0.01704953338119167
+1620.0,0.01704953338119167
+1621.0,0.06819813352476668
+1740.0,0.06819813352476668
+1741.0,0.10229720028715
+1800.0,0.10229720028715
+1801.0,0.06819813352476668
+1860.0,0.06819813352476668
+1861.0,0.01704953338119167
+1920.0,0.01704953338119167
+1921.0,0.10229720028715
+1980.0,0.10229720028715
+1981.0,0.06819813352476668
+2040.0,0.06819813352476668
+2041.0,0.10229720028715
+2220.0,0.10229720028715
+2221.0,0.06819813352476668
+2340.0,0.06819813352476668
+2341.0,0.01704953338119167
+2400.0,0.01704953338119167
+2401.0,0.10229720028715
+2520.0,0.10229720028715
+2521.0,0.01704953338119167
+2580.0,0.01704953338119167
+2581.0,0.06819813352476668
+2820.0,0.06819813352476668
+2821.0,0.10229720028715
+2880.0,0.10229720028715
+2881.0,0.06819813352476668
+3060.0,0.06819813352476668
+3061.0,0.10229720028715
+3180.0,0.10229720028715
+3181.0,0.01704953338119167
+3300.0,0.01704953338119167
+3301.0,0.06819813352476668
+3360.0,0.06819813352476668
+3361.0,0.10229720028715
+3420.0,0.10229720028715
+3421.0,0.01704953338119167
+3540.0,0.01704953338119167
+3541.0,0.10229720028715
+3600.0,0.10229720028715
+3601.0,0.06819813352476668
+3720.0,0.06819813352476668
+3721.0,0.01704953338119167
+3960.0,0.01704953338119167
+3961.0,0.06819813352476668
+4020.0,0.06819813352476668
+4021.0,0.10229720028715
+4080.0,0.10229720028715
+4081.0,0.06819813352476668
+4140.0,0.06819813352476668
+4141.0,0.10229720028715
+4200.0,0.10229720028715
+4201.0,0.01704953338119167
+4260.0,0.01704953338119167
+4261.0,0.06819813352476668
+4320.0,0.06819813352476668
+4320.000002,0.01704953338119167
+					</series>
+					<comment/>
+				</plot>
+			</result>
+		</query>
+		<query>
+			<formula>E[&lt;=72*h; 100](max:o)</formula>
+			<comment>Set in options -&gt; statistical parameters the 'discretization step for hybrid systems' to 
+0.5 to speed up calculation.</comment>
+		</query>
+		<query>
+			<formula/>
+			<comment/>
+		</query>
+		<query>
+			<formula>// Optimal control</formula>
+			<comment/>
+		</query>
+		<query>
+			<formula>strategy opt = minE (c) [&lt;=72*h]: &lt;&gt; (t==72*h &amp;&amp; o &lt;= 0)</formula>
+			<comment>Notice that with o being monotonically increasing, the []o &lt;= 0 equals &lt;&gt;o &lt;= 0. Therefore, we can combine the synthesis 
+of a safe and optimal strategy a single query.
+Set in options -&gt; statistical parameters the 'discretization step for hybrid systems' to 
+0.5 to speed up calculation.
+Set in options -&gt; learning parameters the first four parameters to 40, 100, 20, 20 (in that order) 
+to speed up the calculation.
+3000 runs in approximately 2.5 minutes.</comment>
+		</query>
+		<query>
+			<formula>E[&lt;=72*h; 1000] (max:o) under opt</formula>
+			<comment>Should be close to zero, as we synthesized a strategy with 'guarantees' on this variable.
+Set in options -&gt; statistical parameters the 'discretization step for hybrid systems' to 
+0.5 to speed up calculation.</comment>
+		</query>
+		<query>
+			<formula>E[&lt;=72*h; 1000] (max:c) under opt</formula>
+			<comment>Approximately 2480.
+Set in options -&gt; statistical parameters the 'discretization step for hybrid systems' to 
+0.5 to speed up calculation.</comment>
+		</query>
+		<query>
+			<formula>simulate 10 [&lt;=72*h] {w} under opt</formula>
+			<comment>Set in options -&gt; statistical parameters the 'discretization step for hybrid systems' to 
+0.5 to speed up calculation.</comment>
+		</query>
+	</queries>
+</nta>

@@ -226,7 +226,7 @@ double uniform(double lower, double upper)
 		</location>
 		<location id="id11" x="-68" y="170">
 			<name x="-93" y="136">Start</name>
-			<urgent/>
+			<committed/>
 		</location>
 		<init ref="id11"/>
 		<transition id="id12" controllable="false">

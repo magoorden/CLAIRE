@@ -133,7 +133,7 @@ clock x = 0.0; // control switching clock</declaration>
 		<location id="id5" x="102" y="0">
 			<urgent/>
 		</location>
-		<init ref="id4"/>
+		<init ref="id5"/>
 		<transition id="id6">
 			<source ref="id5"/>
 			<target ref="id3"/>
@@ -226,7 +226,7 @@ double uniform(double lower, double upper)
 		</location>
 		<location id="id11" x="-68" y="170">
 			<name x="-93" y="136">Start</name>
-			<urgent/>
+			<committed/>
 		</location>
 		<init ref="id11"/>
 		<transition id="id12" controllable="false">
@@ -321,6 +321,28 @@ Set in options -&gt; statistical parameters the 'discretization step for hybrid 
 			<formula>//simulate 10 [&lt;=72*h] {w} under opt</formula>
 			<comment>Set in options -&gt; statistical parameters the 'discretization step for hybrid systems' to 
 0.5 to speed up calculation.</comment>
+		</query>
+		<query>
+			<formula>strategy opt = minE (c) [&lt;=6*60]: &lt;&gt; (t==360.0 &amp;&amp; o &lt;= 0)</formula>
+			<comment/>
+			<result outcome="success" type="quality" timestamp="2022-02-22 11:01:40 +0100">
+				<option key="--total-runs" value="50"/>
+				<option key="--discretization" value="0.5"/>
+				<option key="--good-runs" value="20"/>
+				<option key="--eval-runs" value="10"/>
+				<option key="--runs-pr-state" value="10"/>
+			</result>
+		</query>
+		<query>
+			<formula>saveStrategy("pondDemo3.json", opt)</formula>
+			<comment/>
+			<result outcome="success" type="quality" timestamp="2022-02-22 11:02:05 +0100">
+				<option key="--total-runs" value="50"/>
+				<option key="--discretization" value="0.5"/>
+				<option key="--good-runs" value="20"/>
+				<option key="--eval-runs" value="10"/>
+				<option key="--runs-pr-state" value="10"/>
+			</result>
 		</query>
 	</queries>
 </nta>

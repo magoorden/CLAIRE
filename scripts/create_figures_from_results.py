@@ -23,13 +23,15 @@ if __name__ == "__main__":
     # Prepare the demonstration figures.
     plt.ion()
     plt.rc('font', size=16)
-    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, gridspec_kw={'height_ratios': [5, 1]})
+    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, gridspec_kw={'height_ratios': [5, 1], 'width_ratios': [1, 2]})
+    fig.suptitle('ONLINE CONTROL OF A STORMWATER POND USING UPPAAL', fontsize=30)
     # Axes for current pond water level.
     # ax1 = fig.add_subplot(2, 2, 1)
     ax1.set_xlabel('')
     ax1.set_ylabel('Water level [m]')
     ax1.set_title("Water level at " + start_time)
     ax1.set_xlim(0, 1)
+    ax1.set_xticks([])
     ax1.set_ylim(0, max_water_level)
 
     # Axes for pond water level history.
@@ -37,7 +39,7 @@ if __name__ == "__main__":
     ax2.set_xlabel('Time')
     ax2.set_ylabel('Water level [m]', color='blue')
     ax2.set_title('History of water level')
-    ax2.set_xlim(dateutil.parser.parse(start_time), dateutil.parser.parse(end_time))
+    ax2.set_xlim(dateutil.parser.parse(start_time), dateutil.parser.parse(end_time) + dateutil.relativedelta.relativedelta(hours=+1))
     plt.setp(ax2.get_xticklabels(), rotation=30,
              ha='right')  # autofmt_xdate removes all other x_axes
 
@@ -54,7 +56,7 @@ if __name__ == "__main__":
     # Axes for weather forecast.
     # ax3 = fig.add_subplot(2, 1, 2)
     ax3.axis('off')
-    text = ax3.text(0.1, 0.05, '', size=22)
+    text = ax3.text(0.1, -0.2, '', size=22)
 
     ax4.axis('off')
     plt.show()
@@ -63,10 +65,13 @@ if __name__ == "__main__":
     points, = ax1.fill([0, 1, 1, 0], [0, 0, 0, 0], 'b')
     level_basin1_line, = ax2.plot([], [], 'b')
     level_basin2_line, = ax2.plot([], [], '--r')
-    orifice_line, = ax2.plot([], [], 'g')
+    orifice_line, = ax2.step([], [], 'g')
     rain_line, = ax22.step([], [], 'k')
-    ax2.legend([level_basin1_line, level_basin2_line], ['Optimal control', 'static control'],
-               loc='center right')
+    ax2.legend([rain_line, level_basin2_line, orifice_line, level_basin1_line],
+               ['Rain precipitation', 'Water level with static orifice setting',
+                'Orifice control with Uppaal', 'Water level with Uppaal control'],
+               #loc='center right')
+               loc=(0.57, 0.3))
     plt.pause(0.01)
     plt.pause(10)  # So you can rescale the fig before the first data is being plotted.
 
@@ -98,8 +103,8 @@ if __name__ == "__main__":
             text.set_text(f'Weather forecast:\n- Next rainfall starts between '
                           f'{row["forecast_low"]} and {row["forecast_high"]} minutes.\n- The rain '
                           f'intensity will be approximately {60 * float(row["forecast_int"]):.2f} '
-                          f'mm/h.\n\nChosen control setting: '
+                          f'mm/h.\n\nChosen control setting by Uppaal: '
                           f'{float(row["orifice_setting"]) - 2:.2f}')
-            plt.pause(0.1)
+            plt.pause(0.05)
 
     plt.pause(5)
