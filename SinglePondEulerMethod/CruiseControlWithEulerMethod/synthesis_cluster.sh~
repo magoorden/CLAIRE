@@ -1,0 +1,24 @@
+#!/bin/bash
+#SBATCH --mail-type=ALL  # Type of email notification: BEGIN,END,FAIL,ALL
+#SBATCH --mail-user=mgoorden@cs.aau.dk
+#SBATCH --partition=naples  # Which partitions may your job be scheduled on
+#SBATCH --mem=120G  # Memory limit that slurm allocates
+#SBATCH --time=3:00:00  # (Optional) time limit in dd:hh:mm:ss format. Make sure to keep an eye on your jobs (using 'squeue -u $(whoami)') anyways.
+
+# Memory limit for user program
+let "m=1024*1024*120"  
+ulimit -v $m
+
+VERIFYTA_DIRECTORY=uppaal-4.1.20-stratego-10-linux64/bin/verifyta
+MODEL_SYNTHESIS_PATH=CruiseControlWithEulerMethod/cruise_minmax_corrected_only_new_method.xml
+MODEL_SIMULATION_PATH=CruiseControlWithEulerMethod/cruise_minmax_corrected_new_method.xml
+QUERY_SYNTHESIS_PATH=CruiseControlWithEulerMethod/cruise_minmax_corrected_new_method_synthesis.q
+QUERY_SIMULATION_PATH=CruiseControlWithEulerMethod/cruise_minmax_corrected_new_method_simulation.q
+RESULT_SYNTHESIS_PATH=CruiseControlWithEulerMethod/cruise_minmax_corrected_new_method_result_synthesis.txt
+RESULT_SIMULATION_PATH=CruiseControlWithEulerMethod/cruise_minmax_corrected_new_method_result_simulation.txt
+
+CMD_SYNTHESIS="${VERIFYTA_DIRECTORY} -s ${MODEL_SYNTHESIS_PATH} ${QUERY_SYNTHESIS_PATH} >> ${RESULT_SYNTHESIS_PATH}"
+CMD_SIMULATION="${VERIFYTA_DIRECTORY} -s ${MODEL_SIMULATION_PATH} ${QUERY_SIMULATION_PATH} >> ${RESULT_SIMULATION_PATH}"
+
+eval "${CMD_SYNTHESIS}"
+eval "${CMD_SIMULATION}"
