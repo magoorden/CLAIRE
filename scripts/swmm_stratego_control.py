@@ -270,7 +270,7 @@ def main():
     # Now we locate the Uppaal folder and files.
     uppaal_folder_name = "uppaal"
     uppaal_folder = os.path.join(base_folder, uppaal_folder_name)
-    model_template_path = os.path.join(uppaal_folder, "pond_demo3.xml")
+    model_template_path = os.path.join(uppaal_folder, "pond.xml")
     query_file_path = os.path.join(uppaal_folder, "pond_demo3_query.q")
     model_config_path = os.path.join(uppaal_folder, "pond_demo3_config.yaml")
     learning_config_path = os.path.join(uppaal_folder, "verifyta_demo3_config.yaml")
