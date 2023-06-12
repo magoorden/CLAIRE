@@ -10,3 +10,13 @@
 uppaal/weather_forecast.csv
 
 uppaal/result.txt
+
+*.dylib
+
+uppaal/pond_demo3_debug.xml
+
+uppaal/pond_demo3_query.q
+
+uppaal/pond_demo3_sim.xml
+
+swmm_models/swmm_demo3_results.csv

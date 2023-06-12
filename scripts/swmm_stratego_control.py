@@ -195,7 +195,7 @@ class MPCSetupPond(sutil.SafeMPCSetup):
             line1 = f"strategy opt = minE (wmax) [<={horizon}*{period}]: <> (t=={final})\n"
             f.write(line1)
             f.write("\n")
-            line2 = f"simulate 1 [<={period}+1] {{ {self.controller.get_var_names_as_string()} " \
+            line2 = f"simulate [<={period}+1;1] {{ {self.controller.get_var_names_as_string()} " \
                     f"}} under opt\n"
             f.write(line2)
 
@@ -276,9 +276,9 @@ def main():
     learning_config_path = os.path.join(uppaal_folder, "verifyta_demo3_config.yaml")
     weather_forecast_path = os.path.join(uppaal_folder, "demo3_weather_forecast.csv")
     output_file_path = os.path.join(uppaal_folder, "demo3_result.txt")
-    verifyta_command = "verifyta-stratego-9"
+    verifyta_command = "verifyta-5-rc4"
     insert_paths_in_uppaal_model(model_template_path, weather_forecast_path,
-                                 os.path.join(uppaal_folder, "libtable.so"))
+                                 os.path.join(uppaal_folder, "libtable.dylib"))
 
     # Define uppaal model variables.
     action_variable = "Open"  # Name of the control variable.
