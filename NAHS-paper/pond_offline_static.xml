@@ -1,0 +1,534 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.5//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_5.dtd'>
+<nta>
+	<declaration>// Global time. One time unit in Uppaal represents 1 minute
+const int m = 1; // 1 minute = 1 time unit
+const int h = 60*m; // 1 hour = 60 minutes
+clock t = 0.0; // global time [min]
+
+// Urban catchment
+const double k_UC = 0.25; // Urban surface resevoir reaction factor [cm/min * 1 / cm] = [cm/(min*cm)]
+const double A_UC = 37.0 * 10000.0 * 10000.0; // urban area catchment [cm2], 1 ha = 10000 m2, 1 m2 = 10000 cm2
+double rain = 0.0; // Rainfall [cm/min]
+clock S_UC = 0.0; // Water surface height urban catchment [cm]
+
+// Rain detention pond
+const int W = 300; // max water height [cm]
+clock w = 100.0; // water level in pond [cm]
+double Qout = 0.0; // pond outflow [cm3/min], will be properly initialized in Controller
+clock o = 0.0; // accumelated overflow time [min]
+
+// Cost function
+clock c = 0.0; // cost function [-]
+
+</declaration>
+	<template>
+		<name>Pond</name>
+		<declaration>// As we only know the pond's surface area, we assume that this is constant.
+const double A_p = 5572 * 10000.0; // pond area [cm2], 1 m2 -&gt; 10000 cm2
+
+// Flow from urban catchment to pond. Eq. 2 in paper.
+double Qin()
+{
+    return S_UC * k_UC * A_UC;
+}
+
+// Dynamics of the water level. Eqs. 4 and 5 in the paper combined.
+double pond_dynamics()
+{
+    if (w &lt;= 0 &amp;&amp; Qin() &lt;= Qout) return 0;
+
+    else if (w &gt;= W &amp;&amp; Qin() &gt;= Qout) return 0; 
+
+    else return (Qin() - Qout) / A_p;
+}
+
+// Cummulative overflow duration. Eq. 6 in the paper
+double overflow()
+{
+    const double epsilon = 0.1; // For numerical precision.
+    if (w &gt;= W - epsilon) return 1.0;
+    
+    else return 0.0;
+}</declaration>
+		<location id="id0" x="0" y="0">
+			<label kind="invariant" x="-76" y="17">w' == pond_dynamics() &amp;&amp;
+o' == overflow()</label>
+		</location>
+		<init ref="id0"/>
+	</template>
+	<template>
+		<name>CostFunction</name>
+		<declaration>const double alpha = 1000.0; // Overflow penalty factor.</declaration>
+		<location id="id1" x="0" y="0">
+			<label kind="invariant" x="-42" y="17">c' == 1 - w / W</label>
+		</location>
+		<init ref="id1"/>
+	</template>
+	<template>
+		<name>UrbanCatchment</name>
+		<location id="id2" x="0" y="0">
+			<label kind="invariant" x="-85" y="17">S_UC' == rain - (S_UC * k_UC)</label>
+		</location>
+		<init ref="id2"/>
+	</template>
+	<template>
+		<name>Controller</name>
+		<declaration>const int P = h; // control switching period [min]
+const double Qomax = 60.0 * 95000.0; // max outflow [cm3/min], 95000 cm3/s = 95 l/s
+const int C = 1; // number of control modes
+const double Qoutv[C] = {(2.0/3.0)*Qomax}; // outflow modes
+
+clock x = 0.0; // control switching clock</declaration>
+		<location id="id3" x="0" y="0">
+			<label kind="invariant" x="-25" y="17">x &lt;= P</label>
+		</location>
+		<location id="id4" x="102" y="0">
+			<urgent/>
+		</location>
+		<init ref="id4"/>
+		<transition id="id5">
+			<source ref="id4"/>
+			<target ref="id3"/>
+			<label kind="select" x="17" y="-102">i:int[0,C-1]</label>
+			<label kind="assignment" x="0" y="-85">x = 0, Qout = Qoutv[i]</label>
+			<nail x="102" y="-59"/>
+			<nail x="0" y="-59"/>
+		</transition>
+		<transition id="id6" controllable="false">
+			<source ref="id3"/>
+			<target ref="id4"/>
+			<label kind="guard" x="34" y="8">x==P</label>
+		</transition>
+	</template>
+	<template>
+		<name>Rain</name>
+		<declaration>const int I = 6; // number of intervals. Simulation should finish before the last period is over. Therefore, last period is a large dummy period.
+int i = 0; // current interval index
+
+// Exact values =&gt; const int dryL[I] = {233*m, 71*m, 1529*m, 187*m, 226*m, 24*h};
+const int dryL[I] = {210*m, 64*m, 1376*m, 168*m, 203*m, 24*h}; // lower bound duration dry period [min]
+const int dryU[I] = {256*m, 78*m, 1682*m, 206*m, 249*m, 24*h}; // upper bound duration dry period [min]
+
+// Exact values =&gt; const int rainL[I] = {30*m, 23*m, 55*m, 26*m, 231*m, 24*h};
+const int rainL[I] = {27*m, 21*m, 49*m, 23*m, 208*m, 24*h}; // lower bound duration raining period [min]
+const int rainU[I] = {33*m, 25*m, 61*m, 29*m, 254*m, 24*h}; // upper bound duration raining period [min]
+
+const double rainmax[I] = {0.01333, 0.03478, 0.02545, 0.02308, 0.00952, 0.0}; // rain intensity [cm/min], 1 mm/min = 0.1 cm/min
+
+clock d = 0.0; // duration of dry or raining period [min]
+const double e = 0.1; // rain uncertainty factor.
+
+// Returns a sample from a uniform distribution between lower and upper.
+double uniform(double lower, double upper)
+{
+    double distance = upper - lower;
+    double sample = random(distance);
+    return lower + sample;
+}</declaration>
+		<location id="id7" x="-153" y="-8">
+			<name x="-204" y="-17">Dry</name>
+			<label kind="invariant" x="-221" y="8">d &lt;= dryU[i]</label>
+		</location>
+		<location id="id8" x="17" y="-8">
+			<name x="34" y="-25">Raining</name>
+			<label kind="invariant" x="25" y="0">d &lt;= rainU[i]</label>
+		</location>
+		<init ref="id7"/>
+		<transition id="id9" controllable="false">
+			<source ref="id8"/>
+			<target ref="id7"/>
+			<label kind="guard" x="-119" y="34">d &gt;= rainL[i]</label>
+			<label kind="assignment" x="-119" y="51">d = 0,
+i++,
+rain = 0.0</label>
+			<nail x="-8" y="34"/>
+			<nail x="-127" y="34"/>
+		</transition>
+		<transition id="id10" controllable="false">
+			<source ref="id7"/>
+			<target ref="id8"/>
+			<label kind="guard" x="-119" y="-102">d &gt;= dryL[i]</label>
+			<label kind="assignment" x="-119" y="-85">d = 0,
+rain = rainmax[i]*uniform(1 - e, 1 + e)</label>
+			<nail x="-136" y="-51"/>
+			<nail x="0" y="-51"/>
+		</transition>
+	</template>
+	<system>system Pond, Rain, Controller, CostFunction, UrbanCatchment;</system>
+	<queries>
+		<option key="--discretization" value="0.5"/>
+		<query>
+			<formula>// Static control queries</formula>
+			<comment/>
+		</query>
+		<query>
+			<formula>simulate 10 [&lt;=72*h] {w, rain}</formula>
+			<comment>Set in options -&gt; statistical parameters the 'discretization step for hybrid systems' to 
+0.5 to speed up calculation.</comment>
+		</query>
+		<query>
+			<formula>E[&lt;=72*h; 1000] (max:c)</formula>
+			<comment>Approximately 2015
+Set in options -&gt; statistical parameters the 'discretization step for hybrid systems' to 
+0.5 to speed up calculation.</comment>
+			<result outcome="success" type="quantity" value="2940.86 ± 6.35542 (95% CI)" timestamp="2022-03-23 15:37:18 +0100">
+				<option key="--discretization" value="0.5"/>
+				<details>2940.86 ± 6.35542 (95% CI)</details>
+				<plot title="Probability Density Distribution" xaxis="max: c" yaxis="probability density">
+					<series title="density" type="b(20.244675)" color="0x0000ff" encoding="csv">2539.544805406272,4.939570551021025E-5
+2559.789480316185,0.0
+2580.034155226097,4.939570551021025E-5
+2600.278830136011,4.939570551021025E-5
+2620.523505045923,0.0
+2640.768179955836,1.97582822040841E-4
+2661.012854865749,2.469785275510513E-4
+2681.257529775662,1.97582822040841E-4
+2701.502204685575,2.469785275510513E-4
+2721.746879595488,7.409355826531537E-4
+2741.991554505401,4.939570551021025E-4
+2762.236229415314,6.915398771429435E-4
+2782.480904325227,0.001086705521224625
+2802.725579235139,0.002370993864490092
+2822.970254145052,0.00197582822040841
+2843.214929054965,0.002519180981020723
+2863.459603964878,0.003013138036122825
+2883.704278874791,0.003408303680204507
+2903.948953784704,0.003309512269184087
+2924.193628694617,0.004099843557347451
+2944.43830360453,0.003704677913265769
+2964.682978514443,0.003803469324286189
+2984.927653424355,0.003704677913265769
+3005.172328334269,0.003161325152653456
+3025.417003244182,0.002864950919592194
+3045.661678154094,0.00197582822040841
+3065.906353064007,0.001284288343265466
+3086.15102797392,0.001827641103877779
+3106.395702883833,9.385184046939947E-4
+3126.640377793746,7.409355826531537E-4
+3146.885052703659,4.939570551021025E-4
+3167.129727613572,1.481871165306307E-4
+					</series>
+					<series title="average" type="pl" color="0x00dd00" encoding="csv">2940.863500650491,0.0
+2940.863500650491,0.004099843557347451
+					</series>
+					<comment>Parameters: α=0.05, ε=0.05, bucket width=20.245, bucket count=32
+Runs: 1000 in total, 1000 (100%) displayed, 0 (0%) remaining
+Span of displayed sample: [2539.54, 3187.37]
+Mean estimate of displayed sample: 2940.86 ± 6.35542 (95% CI)</comment>
+				</plot>
+				<plot title="Probability Distribution" xaxis="max: c" yaxis="probability">
+					<series title="probability" type="b(20.244675)" color="0x0000ff" encoding="csv">2539.544805406272,0.001
+2559.789480316185,0.0
+2580.034155226097,0.001
+2600.278830136011,0.001
+2620.523505045923,0.0
+2640.768179955836,0.004
+2661.012854865749,0.005
+2681.257529775662,0.004
+2701.502204685575,0.005
+2721.746879595488,0.015
+2741.991554505401,0.01
+2762.236229415314,0.014
+2782.480904325227,0.022
+2802.725579235139,0.048
+2822.970254145052,0.04
+2843.214929054965,0.051
+2863.459603964878,0.061
+2883.704278874791,0.069
+2903.948953784704,0.067
+2924.193628694617,0.083
+2944.43830360453,0.075
+2964.682978514443,0.077
+2984.927653424355,0.075
+3005.172328334269,0.064
+3025.417003244182,0.058
+3045.661678154094,0.04
+3065.906353064007,0.026
+3086.15102797392,0.037
+3106.395702883833,0.019
+3126.640377793746,0.015
+3146.885052703659,0.01
+3167.129727613572,0.003
+					</series>
+					<series title="average" type="pl" color="0x00dd00" encoding="csv">2940.863500650491,0.0
+2940.863500650491,0.083
+					</series>
+					<comment>Parameters: α=0.05, ε=0.05, bucket width=20.245, bucket count=32
+Runs: 1000 in total, 1000 (100%) displayed, 0 (0%) remaining
+Span of displayed sample: [2539.54, 3187.37]
+Mean estimate of displayed sample: 2940.86 ± 6.35542 (95% CI)</comment>
+				</plot>
+				<plot title="Cumulative Probability Distribution" xaxis="max: c" yaxis="probability">
+					<series title="cumulative" type="l" color="0x000000" encoding="csv">2539.544805406272,0.0
+2559.789480316185,0.001
+2580.034155226097,0.001
+2600.278830136011,0.002
+2620.523505045923,0.003
+2640.768179955836,0.003
+2661.012854865749,0.007
+2681.257529775662,0.012
+2701.502204685575,0.016
+2721.746879595488,0.021
+2741.991554505401,0.036
+2762.236229415314,0.046
+2782.480904325227,0.06
+2802.725579235139,0.082
+2822.970254145052,0.13
+2843.214929054965,0.17
+2863.459603964878,0.221
+2883.704278874791,0.282
+2903.948953784704,0.351
+2924.193628694617,0.418
+2944.43830360453,0.501
+2964.682978514443,0.576
+2984.927653424355,0.653
+3005.172328334269,0.728
+3025.417003244182,0.792
+3045.661678154094,0.85
+3065.906353064007,0.89
+3086.15102797392,0.916
+3106.395702883833,0.953
+3126.640377793746,0.972
+3146.885052703659,0.987
+3167.129727613572,0.997
+					</series>
+					<series title="average" type="pl" color="0x00dd00" encoding="csv">2940.863500650491,0.0
+2940.863500650491,1.0
+					</series>
+					<comment>Parameters: α=0.05, ε=0.05, bucket width=20.245, bucket count=32
+Runs: 1000 in total, 1000 (100%) displayed, 0 (0%) remaining
+Span of displayed sample: [2539.54, 3187.37]
+Mean estimate of displayed sample: 2940.86 ± 6.35542 (95% CI)</comment>
+				</plot>
+				<plot title="Cumulative Probability Confidence Intervals" xaxis="max: c" yaxis="probability">
+					<series title="upper limit" type="k" color="0x0000dd" encoding="csv">2539.544805406272,0.003682083896865672
+2559.789480316185,0.005558924279826673
+2580.034155226097,0.005558924279826673
+2600.278830136011,0.007205838911457498
+2620.523505045923,0.008742023238478303
+2640.768179955836,0.008742023238478303
+2661.012854865749,0.01436919497891863
+2681.257529775662,0.02086767959103641
+2701.502204685575,0.02585324908137346
+2721.746879595488,0.0319223351804155
+2741.991554505401,0.04949291171801237
+2762.236229415314,0.06088355271374265
+2782.480904325227,0.07656049040393477
+2802.725579235139,0.1007628674153114
+2822.970254145052,0.1524364946004402
+2843.214929054965,0.1947441450712037
+2863.459603964878,0.2480184632116429
+2883.704278874791,0.3110030727092493
+2903.948953784704,0.3814866010926248
+2924.193628694617,0.4492743785730605
+2944.43830360453,0.5324478137462618
+2964.682978514443,0.6068672809599546
+2984.927653424355,0.6825160263170543
+3005.172328334269,0.755375498730961
+3025.417003244182,0.8167666804261164
+3045.661678154094,0.8715751888838272
+3065.906353064007,0.9087222255405338
+3086.15102797392,0.9324472580294167
+3106.395702883833,0.965264937733204
+3126.640377793746,0.9813153138044625
+3146.885052703659,0.9930603824971486
+3167.129727613572,0.9993809000683505
+					</series>
+					<series title="upper limit" type="k" color="0xdd0000" encoding="csv">2539.544805406272,0.0
+2559.789480316185,2.531748749129404E-5
+2580.034155226097,2.531748749129404E-5
+2600.278830136011,2.423011168772319E-4
+2620.523505045923,6.190999316495713E-4
+2640.768179955836,6.190999316495713E-4
+2661.012854865749,0.002818858759620526
+2681.257529775662,0.006215525559595242
+2701.502204685575,0.00917231926922208
+2721.746879595488,0.01304519229038769
+2741.991554505401,0.02533891492983774
+2762.236229415314,0.03387149854767792
+2782.480904325227,0.04609503542248433
+2802.725579235139,0.0657458602718319
+2822.970254145052,0.1097693124537045
+2843.214929054965,0.1472170223524686
+2863.459603964878,0.1956353744528384
+2883.704278874791,0.2542866993409255
+2903.948953784704,0.3213937931189769
+2924.193628694617,0.3872097969681708
+2944.43830360453,0.4695462833385421
+2964.682978514443,0.5446839891296142
+2984.927653424355,0.6225798930217138
+3005.172328334269,0.6992752220636205
+3025.417003244182,0.765501474871813
+3045.661678154094,0.826341871432964
+3065.906353064007,0.8689475363625123
+3086.15102797392,0.897057001008265
+3106.395702883833,0.9379873693066948
+3126.640377793746,0.9597851126261567
+3146.885052703659,0.9778721963632215
+3167.129727613572,0.9912579767615217
+					</series>
+					<series title="cumulative" type="l" color="0x000000" encoding="csv">2539.544805406272,0.0
+2559.789480316185,0.001
+2580.034155226097,0.001
+2600.278830136011,0.002
+2620.523505045923,0.003
+2640.768179955836,0.003
+2661.012854865749,0.007
+2681.257529775662,0.012
+2701.502204685575,0.016
+2721.746879595488,0.021
+2741.991554505401,0.036
+2762.236229415314,0.046
+2782.480904325227,0.06
+2802.725579235139,0.082
+2822.970254145052,0.13
+2843.214929054965,0.17
+2863.459603964878,0.221
+2883.704278874791,0.282
+2903.948953784704,0.351
+2924.193628694617,0.418
+2944.43830360453,0.501
+2964.682978514443,0.576
+2984.927653424355,0.653
+3005.172328334269,0.728
+3025.417003244182,0.792
+3045.661678154094,0.85
+3065.906353064007,0.89
+3086.15102797392,0.916
+3106.395702883833,0.953
+3126.640377793746,0.972
+3146.885052703659,0.987
+3167.129727613572,0.997
+					</series>
+					<series title="average" type="pl" color="0x00dd00" encoding="csv">2940.863500650491,0.0
+2940.863500650491,1.0
+					</series>
+					<comment>Parameters: α=0.05, ε=0.05, bucket width=20.245, bucket count=32
+Runs: 1000 in total, 1000 (100%) displayed, 0 (0%) remaining
+Span of displayed sample: [2539.54, 3187.37]
+Mean estimate of displayed sample: 2940.86 ± 6.35542 (95% CI)</comment>
+				</plot>
+				<plot title="Frequency Histogram" xaxis="max: c" yaxis="count">
+					<series title="count" type="b(20.244675)" color="0x0000ff" encoding="csv">2539.544805406272,1.0
+2559.789480316185,0.0
+2580.034155226097,1.0
+2600.278830136011,1.0
+2620.523505045923,0.0
+2640.768179955836,4.0
+2661.012854865749,5.0
+2681.257529775662,4.0
+2701.502204685575,5.0
+2721.746879595488,15.0
+2741.991554505401,10.0
+2762.236229415314,14.0
+2782.480904325227,22.0
+2802.725579235139,48.0
+2822.970254145052,40.0
+2843.214929054965,51.0
+2863.459603964878,61.0
+2883.704278874791,69.0
+2903.948953784704,67.0
+2924.193628694617,83.0
+2944.43830360453,75.0
+2964.682978514443,77.0
+2984.927653424355,75.0
+3005.172328334269,64.0
+3025.417003244182,58.0
+3045.661678154094,40.0
+3065.906353064007,26.0
+3086.15102797392,37.0
+3106.395702883833,19.0
+3126.640377793746,15.0
+3146.885052703659,10.0
+3167.129727613572,3.0
+					</series>
+					<series title="average" type="pl" color="0x00dd00" encoding="csv">2940.863500650491,0.0
+2940.863500650491,83.0
+					</series>
+					<comment>Parameters: α=0.05, ε=0.05, bucket width=20.245, bucket count=32
+Runs: 1000 in total, 1000 (100%) displayed, 0 (0%) remaining
+Span of displayed sample: [2539.54, 3187.37]
+Mean estimate of displayed sample: 2940.86 ± 6.35542 (95% CI)</comment>
+				</plot>
+			</result>
+		</query>
+		<query>
+			<formula>E[&lt;=72*h; 1000] (max:o)</formula>
+			<comment>Approximately 2.2
+Set in options -&gt; statistical parameters the 'discretization step for hybrid systems' to 
+0.5 to speed up calculation.</comment>
+			<result outcome="success" type="quantity" value="≈ 0" timestamp="2022-03-23 15:32:46 +0100">
+				<option key="--discretization" value="0.5"/>
+				<details>≈ 0</details>
+				<plot title="Probability Density Distribution" xaxis="max: o" yaxis="probability density">
+					<series title="density" type="b(0.000000)" color="0x0000ff" encoding="csv">0.0,4.503599627370496E15
+					</series>
+					<series title="average" type="pl" color="0x00dd00" encoding="csv">0.0,0.0
+0.0,4.503599627370496E15
+					</series>
+					<comment>Parameters: α=0.05, ε=0.05, bucket width=2.2204e-16, bucket count=1
+Runs: 1000 in total, 1000 (100%) displayed, 0 (0%) remaining
+Span of displayed sample: [0, 0]
+Mean estimate of displayed sample: ≈ 0</comment>
+				</plot>
+				<plot title="Probability Distribution" xaxis="max: o" yaxis="probability">
+					<series title="probability" type="b(0.000000)" color="0x0000ff" encoding="csv">0.0,1.0
+					</series>
+					<series title="average" type="pl" color="0x00dd00" encoding="csv">0.0,0.0
+0.0,1.0
+					</series>
+					<comment>Parameters: α=0.05, ε=0.05, bucket width=2.2204e-16, bucket count=1
+Runs: 1000 in total, 1000 (100%) displayed, 0 (0%) remaining
+Span of displayed sample: [0, 0]
+Mean estimate of displayed sample: ≈ 0</comment>
+				</plot>
+				<plot title="Cumulative Probability Distribution" xaxis="max: o" yaxis="probability">
+					<series title="cumulative" type="l" color="0x000000" encoding="csv">0.0,0.0
+					</series>
+					<series title="average" type="pl" color="0x00dd00" encoding="csv">0.0,0.0
+0.0,1.0
+					</series>
+					<comment>Parameters: α=0.05, ε=0.05, bucket width=2.2204e-16, bucket count=1
+Runs: 1000 in total, 1000 (100%) displayed, 0 (0%) remaining
+Span of displayed sample: [0, 0]
+Mean estimate of displayed sample: ≈ 0</comment>
+				</plot>
+				<plot title="Cumulative Probability Confidence Intervals" xaxis="max: o" yaxis="probability">
+					<series title="upper limit" type="k" color="0x0000dd" encoding="csv">0.0,0.003682083896865672
+					</series>
+					<series title="upper limit" type="k" color="0xdd0000" encoding="csv">0.0,0.0
+					</series>
+					<series title="cumulative" type="l" color="0x000000" encoding="csv">0.0,0.0
+					</series>
+					<series title="average" type="pl" color="0x00dd00" encoding="csv">0.0,0.0
+0.0,1.0
+					</series>
+					<comment>Parameters: α=0.05, ε=0.05, bucket width=2.2204e-16, bucket count=1
+Runs: 1000 in total, 1000 (100%) displayed, 0 (0%) remaining
+Span of displayed sample: [0, 0]
+Mean estimate of displayed sample: ≈ 0</comment>
+				</plot>
+				<plot title="Frequency Histogram" xaxis="max: o" yaxis="count">
+					<series title="count" type="b(0.000000)" color="0x0000ff" encoding="csv">0.0,1000.0
+					</series>
+					<series title="average" type="pl" color="0x00dd00" encoding="csv">0.0,0.0
+0.0,1000.0
+					</series>
+					<comment>Parameters: α=0.05, ε=0.05, bucket width=2.2204e-16, bucket count=1
+Runs: 1000 in total, 1000 (100%) displayed, 0 (0%) remaining
+Span of displayed sample: [0, 0]
+Mean estimate of displayed sample: ≈ 0</comment>
+				</plot>
+			</result>
+		</query>
+		<query>
+			<formula>Pr[&lt;=75*h] (&lt;&gt;o &gt; 0)</formula>
+			<comment/>
+			<result outcome="success" type="interval" value="[0,0.0499441] (95% CI)" timestamp="2022-03-23 15:31:14 +0100">
+				<option key="--discretization" value="0.5"/>
+				<details>[0,0.0499441] (95% CI)</details>
+			</result>
+		</query>
+	</queries>
+</nta>
