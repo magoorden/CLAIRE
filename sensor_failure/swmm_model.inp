@@ -15,7 +15,7 @@ START_DATE           09/05/2019
 START_TIME           00:00:00
 REPORT_START_DATE    09/05/2019
 REPORT_START_TIME    00:00:00
-END_DATE             09/23/2019
+END_DATE             09/10/2019
 END_TIME             00:00:00
 SWEEP_START          01/01
 SWEEP_END            01/01
@@ -180,7 +180,7 @@ catchment_storage3 Storage    0.01       100000
 ;;Name           Date       Time       Value     
 ;;-------------- ---------- ---------- ----------
 ;
-long_term_rainfallgauge5061 FILE "/home/martijn/Documents/CLAIRE/sensor_failure/swmm_5061_small.dat"
+long_term_rainfallgauge5061 FILE "/Users/mgoorden/Documents/Projects/CLAIRE/GitHub/sensor_failure/swmm_5061_small.dat"
 
 [REPORT]
 ;;Reporting Options

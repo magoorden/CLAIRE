@@ -38,20 +38,13 @@ def swmm_control(swmm_inputfile, orifice_id, basin_id, time_step, csv_file_basen
     water_depth_basin1 = []
     water_depth_basin2 = []
     orifice_settings = []
-    water_depth_stream1 = []
-    # orifice_flow = []
-    # basin_total_inflow = []
-    # basin_total_outflow = []
-    # basin_total_evaporation = []
-    # overflow = []
+    water_depth_stream1_reported = []
+    water_depth_stream1_true = []
+    nn_active = []
     rain = []
     weather_forecast_low = []
     weather_forecast_high = []
     weather_forecast_int = []
-    # subcatchment_total_rain = []
-    # subcatchment_total_runoff = []
-    # subcatchment_total_infiltration = []
-    # subcatchment_total_evaporation = []
 
     # We should have at least a single reading of the initial stream water level.
     assert(sensor_failure_start > 0)
@@ -67,19 +60,20 @@ def swmm_control(swmm_inputfile, orifice_id, basin_id, time_step, csv_file_basen
         su1 = Nodes(sim)[basin_id]
         su2 = Nodes(sim)['SU2']
         orifice = Links(sim)[orifice_id]
+        stream = Nodes(sim)["J2"]
         # rg1 = RainGages(sim)["RG1"]
         ca = Subcatchments(sim)["S1"]
         sim.step_advance(time_step)
         current_time = sim.start_time
 
-        # TODO change to actual water depth from SWMM.
-        water_depth_stream1.append(20)
-        last_stream_level = water_depth_stream1[-1]
+        water_depth_stream1_reported.append(stream.depth)
+        water_depth_stream1_true.append(stream.depth)
+        last_stream_level = water_depth_stream1_reported[-1]
 
-        orifice.target_setting = get_control_strategy(su1.depth, current_time, controller, period,
+        orifice.target_setting = get_control_strategy(su1.depth, stream.depth, current_time, controller, period,
                                                       horizon, rain_data_file,
                                                       weather_forecast_path, uncertainty)
-        orifice_settings.append(1.75 * orifice.target_setting + 2)
+        orifice_settings.append(1.75 * orifice.target_setting)
         rain_low, rain_high, rain_int = get_weather_forecast_result(weather_forecast_path)
         weather_forecast_low.append(rain_low)
         weather_forecast_high.append(rain_high)
@@ -87,7 +81,8 @@ def swmm_control(swmm_inputfile, orifice_id, basin_id, time_step, csv_file_basen
         time_series.append(sim.start_time)
         water_depth_basin1.append(su1.depth)
         water_depth_basin2.append(su2.depth)
-        rain.append(0)
+        nn_active.append(0)
+        rain.append(0)  # Obtaining rain is only possible after the first simulation step.
         total_precipitation = 0
 
         total_inflow = 0
@@ -110,19 +105,24 @@ def swmm_control(swmm_inputfile, orifice_id, basin_id, time_step, csv_file_basen
             if sensor_out:
                 j = i - sensor_failure_start  # Remember that step size of nn is 30 min.
                 w_pred, w_std = get_estimated_stream_level(neural_network_model, neural_network_data_loader, rain[-j:], last_stream_level, j)
-                stream_level = w_pred[-1][0][0]
+                stream_level = w_pred[-1][0][0] / 100  # SWMM is in m, while NN model is in cm.
+                nn_active.append(1)
             else:
-                # TODO get stream level from SWMM model
-                stream_level = 20
-                last_stream_level = stream_level
+                stream_level = stream.depth
+                last_stream_level = stream.depth * 100  # SWMM is in m, while NN model is in cm.
+                nn_active.append(0)
+
+
+            water_depth_stream1_reported.append(stream_level)
+            water_depth_stream1_true.append(stream.depth)
 
             # Set the control parameter in case we can switch.
             if i % (period * 60 / time_step) == 0:
-                orifice.target_setting = get_control_strategy(su1.depth, current_time, controller,
+                orifice.target_setting = get_control_strategy(su1.depth, stream_level, current_time, controller,
                                                               period, horizon, rain_data_file,
                                                               weather_forecast_path, uncertainty)
-            orifice_settings.append(1.75 * orifice.target_setting + 2)
-            if i % (period * 60 / time_step) != 0:
+            orifice_settings.append(1.75 * orifice.target_setting)
+            if i > 2 and i % (period * 60 / time_step) != 0:
                 assert orifice_settings[-1] == orifice_settings[-2]  # Sanity check where time step != control period
             rain_low, rain_high, rain_int = get_weather_forecast_result(weather_forecast_path)
             weather_forecast_low.append(rain_low)
@@ -150,12 +150,14 @@ def swmm_control(swmm_inputfile, orifice_id, basin_id, time_step, csv_file_basen
     with open(output_csv_file, "w") as f:
         writer = csv.writer(f)
         writer.writerow(["time", "water_depth_basin1", "water_depth_basin2", "orifice_setting",
-                         "rain", "forecast_low", "forecast_high", "forecast_int"])
-        for i, j, k, l, m, n, o, p in zip(time_series, water_depth_basin1, water_depth_basin2,
+                         "rain", "forecast_low", "forecast_high", "forecast_int", "water_depth_stream1_reported",
+                         "water_depth_stream1_true", "nn_active"])
+        for i, j, k, l, m, n, o, p, q, r, s in zip(time_series, water_depth_basin1, water_depth_basin2,
                                           orifice_settings, rain, weather_forecast_low,
-                                          weather_forecast_high, weather_forecast_int):
+                                          weather_forecast_high, weather_forecast_int, water_depth_stream1_reported,
+                                          water_depth_stream1_true, nn_active):
             i = i.strftime('%Y-%m-%d %H:%M')
-            writer.writerow([i, j, k, l, m, n, o, p])
+            writer.writerow([i, j, k, l, m, n, o, p, q, r, s])
 
 
 def get_estimated_stream_level(model, data_loader, rain_values, last_stream_level, num_steps):
@@ -180,9 +182,9 @@ def get_estimated_stream_level(model, data_loader, rain_values, last_stream_leve
     MC_NUM = 10  # num of Monte carlo simulation
     return model.predict_(torch.Tensor([last_stream_level]), g_input, step=num_steps + 1, mc_num=MC_NUM)
 
-def get_control_strategy(current_water_level, current_time, controller, period, horizon,
+def get_control_strategy(current_pond_level, current_stream_level, current_time, controller, period, horizon,
                          rain_data_file, weather_forecast_path, uncertainty):
-    controller.controller.update_state({'w': current_water_level * 100})  # Conversion from m to cm.
+    controller.controller.update_state({'w': current_pond_level * 100, 'st_w': current_stream_level * 100})  # Conversion from m to cm.
     control_setting = controller.run_single(period, horizon, start_date=current_time,
                                             historical_rain_data_path=rain_data_file,
                                             weather_forecast_path=weather_forecast_path,
@@ -235,7 +237,7 @@ class MPCSetupPond(sutil.SafeMPCSetup):
             line1 = f"strategy opt = minE (c) [<={horizon}*{period}]: <> (t=={final} && o <= 0)\n"
             f.write(line1)
             f.write("\n")
-            line2 = f"simulate 1 [<={period}+1] {{ {self.controller.get_var_names_as_string()} " \
+            line2 = f"simulate [<={period}+1;1] {{ {self.controller.get_var_names_as_string()} " \
                     f"}} under opt\n"
             f.write(line2)
 
@@ -250,7 +252,7 @@ class MPCSetupPond(sutil.SafeMPCSetup):
             line1 = f"strategy opt = minE (wmax) [<={horizon}*{period}]: <> (t=={final})\n"
             f.write(line1)
             f.write("\n")
-            line2 = f"simulate 1 [<={period}+1] {{ {self.controller.get_var_names_as_string()} " \
+            line2 = f"simulate [<={period}+1;1] {{ {self.controller.get_var_names_as_string()} " \
                     f"}} under opt\n"
             f.write(line2)
 
@@ -337,15 +339,15 @@ def main():
     swmm_results = "swmm_results"
 
     # Now we locate the Uppaal folder and files.
-    model_template_path = os.path.join(base_folder, "pond.xml")
+    model_template_path = os.path.join(base_folder, "pond_stream.xml")
     query_file_path = os.path.join(base_folder, "pond_query.q")
     model_config_path = os.path.join(base_folder, "pond_config.yaml")
     learning_config_path = os.path.join(base_folder, "verifyta_config.yaml")
     weather_forecast_path = os.path.join(base_folder, "weather_forecast.csv")
     output_file_path = os.path.join(base_folder, "results.txt")
-    verifyta_command = "verifyta-stratego-8-11"
+    verifyta_command = "verifyta-5-rc4"
     insert_paths_in_uppaal_model(model_template_path, weather_forecast_path,
-                                 os.path.join(base_folder, "libtable.so"))
+                                 os.path.join(base_folder, "libtable.dylib"))
 
     # Define uppaal model variables.
     action_variable = "Open"  # Name of the control variable.
@@ -358,8 +360,8 @@ def main():
     neural_network_folder = os.path.join(base_folder, "nn_code")
     hist_data_file = os.path.join(neural_network_folder, "swmm_demo3_temp_results.csv")
     neural_network_model_file = os.path.join(neural_network_folder, "joint_swmm_hist_indiv.pt")
-    sensor_failure_time = 1  # Expressed in the number of SWMM time steps.
-    sensor_failure_duration = 6  # Expressed in the number of SWMM time steps.
+    sensor_failure_time = 72  # Expressed in the number of SWMM time steps.
+    sensor_failure_duration = 12  # Expressed in the number of SWMM time steps.
 
     # Get model and learning config dictionaries from files.
     with open(model_config_path, "r") as yamlfile:

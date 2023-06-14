@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.5//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_5.dtd'>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.6//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_6.dtd'>
 <nta>
 	<declaration>// Global time. One time unit in Uppaal represents 1 minute
 const int m = 1; // 1 minute = 1 time unit
@@ -24,7 +24,7 @@ clock o = //TAG_o; // accumulated overflow time [min]
 clock c = //TAG_c; // cost function [-]
 
 // Import data reading functions
-import "/home/martijn/Documents/CLAIRE/sensor_failure/libtable.so" {
+import "/Users/mgoorden/Documents/Projects/CLAIRE/GitHub/sensor_failure/libtable.dylib" {
     /** read the table from the csv file and return its id: */
     int table_read_csv(const string&amp; filename, int skip_lines);
     /** return the number of rows in the table: */
@@ -38,6 +38,13 @@ import "/home/martijn/Documents/CLAIRE/sensor_failure/libtable.so" {
 };
 
 </declaration>
+	<template>
+		<name>CostFunction</name>
+		<location id="id0" x="0" y="0">
+			<label kind="invariant" x="-110" y="17">c' == 1 - w / W + 1000 * pow(w / W, 20)</label>
+		</location>
+		<init ref="id0"/>
+	</template>
 	<template>
 		<name>Pond</name>
 		<declaration>// We assume as pond geometry an inverted pyramid with square base, where the base is the surface of the permanent water level. 
@@ -97,16 +104,9 @@ double overflow()
     
     else return 0.0;
 }</declaration>
-		<location id="id0" x="0" y="0">
+		<location id="id1" x="0" y="0">
 			<label kind="invariant" x="-76" y="17">w' == pond_dynamics() &amp;&amp;
 o' == overflow()</label>
-		</location>
-		<init ref="id0"/>
-	</template>
-	<template>
-		<name>CostFunction</name>
-		<location id="id1" x="0" y="0">
-			<label kind="invariant" x="-110" y="17">c' == 1 - w / W + 1000 * pow(w / W, 20)</label>
 		</location>
 		<init ref="id1"/>
 	</template>
@@ -164,7 +164,7 @@ int rainLoc = //TAG_Rain.rainLoc; // rain location, only used for online control
 clock d = 0.0; // duration of dry or raining period [min]
 
 // Load weather forecast data from external data file.
-const int file_id = table_read_csv("/home/martijn/Documents/CLAIRE/sensor_failure/weather_forecast.csv", 1);
+const int file_id = table_read_csv("/Users/mgoorden/Documents/Projects/CLAIRE/GitHub/sensor_failure/weather_forecast.csv", 1);
 const int rows = table_rows(file_id);
 const int cols = table_cols(file_id);
 
