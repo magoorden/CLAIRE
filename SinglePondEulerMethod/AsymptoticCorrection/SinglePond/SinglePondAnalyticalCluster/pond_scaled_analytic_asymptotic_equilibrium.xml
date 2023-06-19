@@ -5,7 +5,7 @@
 const int m = 1; // 1 minute = 1 time unit
 const int h = 60*m; // 1 hour = 60 minutes
 clock t; // global time [min]
-const int horizon = 5 * h;
+const int horizon = 6 * h;
 const double delta = 0.001; // Approximation error for equilibria.
 
 // Scaling factor for the dimension of the water height on the streeds
