@@ -101,7 +101,13 @@ def swmm_control(swmm_inputfile, orifice_id, basin_id, time_step, csv_file_basen
             rain.append(ca.statistics.get('precipitation') - total_precipitation)
             total_precipitation = ca.statistics.get('precipitation')
 
-            sensor_out = sensor_failure_start < i < sensor_failure_start + sensor_failure_duration
+            # When using fixed failure intervals.
+            # sensor_out = sensor_failure_start < i < sensor_failure_start + sensor_failure_duration
+            # When using random failure intervals.
+            base = -2
+            sensor_failure_duration = 6
+            sensor_failure_start = i if sensor_failure_start == -1 and np.random.rand() < sigmoid(base + rain[-1]) else sensor_failure_start if i < sensor_failure_start + sensor_failure_duration else -1
+            sensor_out = sensor_failure_start != -1
             if sensor_out:
                 j = i - sensor_failure_start  # Remember that step size of nn is 30 min.
                 w_pred, w_std = get_estimated_stream_level(neural_network_model, neural_network_data_loader, rain[-j:], last_stream_level, j)
@@ -200,6 +206,10 @@ def get_weather_forecast_result(weather_forecast_path):
         first_data = next(weather_forecast)
 
         return int(first_data[0]), int(first_data[1]), float(first_data[4])
+
+
+def sigmoid(x):
+    return np.exp(-np.logaddexp(0, -x))
 
 
 def print_progress_bar(i, max, post_text):
