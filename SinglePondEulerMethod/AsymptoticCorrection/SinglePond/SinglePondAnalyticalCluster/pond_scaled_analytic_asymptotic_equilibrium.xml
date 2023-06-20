@@ -445,7 +445,7 @@ const int rainU[I] = {33*m, 25*m, 61*m, 29*m, 254*m, 24*h}; // upper bound durat
 //const int rainU[I] = {30*m, 23*m, 55*m, 26*m, 231*m, 24*h}; // upper bound duration raining period [min]
 
 const int lb = fint(sample_factor * (1 - e));
-const int ub = fint(sample_factor * (1 - e));
+const int ub = fint(sample_factor * (1 + e));
 
 clock d = 0.0; // duration of dry or raining period [min]
 
