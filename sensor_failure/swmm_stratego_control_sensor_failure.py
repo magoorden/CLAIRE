@@ -47,7 +47,7 @@ def swmm_control(swmm_inputfile, orifice_id, basin_id, time_step, csv_file_basen
     weather_forecast_int = []
 
     # We should have at least a single reading of the initial stream water level.
-    assert(sensor_failure_start > 0)
+    assert(sensor_failure_start > 0 or sensor_failure_start == -1)
     assert(sensor_failure_duration > 0)
 
     with Simulation(swmm_inputfile) as sim:
@@ -104,8 +104,8 @@ def swmm_control(swmm_inputfile, orifice_id, basin_id, time_step, csv_file_basen
             # When using fixed failure intervals.
             # sensor_out = sensor_failure_start < i < sensor_failure_start + sensor_failure_duration
             # When using random failure intervals.
-            base = -2
-            sensor_failure_duration = 6
+            base = -4
+            sensor_failure_duration = 12
             sensor_failure_start = i if sensor_failure_start == -1 and np.random.rand() < sigmoid(base + rain[-1]) else sensor_failure_start if i < sensor_failure_start + sensor_failure_duration else -1
             sensor_out = sensor_failure_start != -1
             if sensor_out:
@@ -117,7 +117,6 @@ def swmm_control(swmm_inputfile, orifice_id, basin_id, time_step, csv_file_basen
                 stream_level = stream.depth
                 last_stream_level = stream.depth * 100  # SWMM is in m, while NN model is in cm.
                 nn_active.append(0)
-
 
             water_depth_stream1_reported.append(stream_level)
             water_depth_stream1_true.append(stream.depth)
@@ -370,7 +369,7 @@ def main():
     neural_network_folder = os.path.join(base_folder, "nn_code")
     hist_data_file = os.path.join(neural_network_folder, "swmm_demo3_temp_results.csv")
     neural_network_model_file = os.path.join(neural_network_folder, "joint_swmm_hist_indiv.pt")
-    sensor_failure_time = 72  # Expressed in the number of SWMM time steps.
+    sensor_failure_time = -1  # Expressed in the number of SWMM time steps.
     sensor_failure_duration = 12  # Expressed in the number of SWMM time steps.
 
     # Get model and learning config dictionaries from files.

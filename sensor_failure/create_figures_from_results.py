@@ -51,7 +51,7 @@ if __name__ == "__main__":
 
     ax22 = ax2.twinx()  # Instantiate a second axes that shares the same x-axis
     ax22.set_ylabel('Rainfall [mm]', color='black')
-    ax22.set_ylim(5, 0)
+    ax22.set_ylim(20, 0)
     ax22.tick_params(axis='y', colors='black')
     # fig.tight_layout()  # Otherwise the right y-label is slightly clipped
 
@@ -75,7 +75,7 @@ if __name__ == "__main__":
                ['Rain precipitation', 'Orifice control with Uppaal', 'Water level stream true',
                 'Water level stream reported', 'neural network active'],
                #loc='center right')
-               loc=(0.57, 0.7))
+               loc=(0.65, 0.7))
     plt.pause(0.01)
     plt.pause(5)  # So you can rescale the fig before the first data is being plotted.
 
@@ -96,7 +96,8 @@ if __name__ == "__main__":
             water_depth_stream1_rep.append(float(row["water_depth_stream1_reported"]))
             water_depth_stream1_true.append(float(row["water_depth_stream1_true"]))
             rain_series.append(float(row["rain"]))
-            orifice_series.append((float(row["orifice_setting"]) - 2) / 10 + 0.1)  # Old data was generated with offset hard coded.
+            # orifice_series.append((float(row["orifice_setting"]) - 2) / 10 + 0.1)  # Old data was generated with offset hard coded.
+            orifice_series.append(float(row["orifice_setting"]) / 30 + 0.2)
             nn_active.append(float(row["nn_active"])-0.1)
 
             # Plot the actual data
@@ -111,7 +112,7 @@ if __name__ == "__main__":
                           f'{row["forecast_low"]} and {row["forecast_high"]} minutes.\n- The rain '
                           f'intensity will be approximately {60 * float(row["forecast_int"]):.2f} '
                           f'mm/h.\n\nChosen control setting by Uppaal: '
-                          f'{float(row["orifice_setting"]) - 2:.2f}')
+                          f'{float(row["orifice_setting"]):.2f}')
             plt.pause(0.01)
 
     plt.pause(5)
