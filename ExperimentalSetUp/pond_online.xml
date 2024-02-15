@@ -1,29 +1,65 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.5//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_5.dtd'>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.6//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_6.dtd'>
 <nta>
 	<declaration>// Global time. One time unit in Uppaal represents 1 minute
 const int m = 1; // 1 minute = 1 time unit
 const int h = 60*m; // 1 hour = 60 minutes
 clock t = 0.0; // global time [min]
 
-// Urban catchment
+// Urban catchment (not in this model), rain flows directly into the pond.
 const double UC_k = 0.25; // Urban surface reservoir reaction factor [cm/min * 1 / cm] = [cm/(min*cm)]
-const double A_UC = 20.0 * 10000.0 * 10000.0; // urban area catchment [cm2], 1 ha = 10000 m2, 1 m2 = 10000 cm2 = [cm/(min*cm)]
-double rain = 0.0; // Rainfall [cm/min]
-clock S_UC = //TAG_S_UC; // Water surface height urban catchment [cm]
+const double A_UC = 472 * 10000.0; // urban area catchment [cm2], 1 m2 = 10000 cm2
+double rain = 0.0; // Rainfall [my-m/s] (unit of rawcast data we read)
+clock S_UC = 0; // Water surface height urban catchment [cm]
 
 // Stormwater detention pond
-const int W = 200; // max water height [cm]
-clock w = //TAG_w; // water level in pond [cm]
-double Open = //TAG_Open; // orifice relative diameter opening [-], will be properly initialized in Controller
-clock o = //TAG_o; // accumulated overflow time [min]
+const int W = 850; // max water height [cm], equates 850 mm in experimental setup
+const int W_min = 150; // Note that the experimental setup has a minimum water level of 150 mm
+clock w = 703.0 ; // water level in pond [cm]
+clock o = 0; // accumulated overflow time [min]
+
+// Pump (controller)
+const int P = 20*m; // control switching period [min]
+const int C = 4; // number of control modes
+const double PumpMaxSpeed = 0.246 * 1000 * 60; // pump maximum capacity [cm2/min], 1 l/s = 60 000 cm3/min
+//const double PumpSpeed[C] = {11.0/26.0, 11.0/26.0, 11.0/26.0, 11.0/26.0}; // pump speed modes, fixed orifice
+const double PumpSpeed[C] = { 0.0/26.0,  5.0/26.0, 11.0/26.0, 26.0/26.0}; // pump speed modes, dynamic orifice
+int[0,C-1] PumpSetting = 0; // orifice relative diameter opening [-], will be properly initialized in Controller
+double test = 0.0;
 
 // Cost function
 const double alpha = 10000.0; // Overflow penalty factor
-clock c = //TAG_c; // cost function [-]
+clock c = 0; // cost function [-]
+
+
+
+// Flow from rain to pond. (Skips urban catchment area.) [cm/min]
+double Qin()
+{
+    return rain * A_UC * 60 / 10000;
+}
+
+// Flow from the pond to the nearby stream through the orifice [cm3/min].
+double Qout()
+{
+    if (w &lt;= W_min) return 0;
+
+    else return PumpSpeed[PumpSetting] * PumpMaxSpeed;
+}
+
+// Cumulative overflow duration. Eq. 6 in the paper.
+double overflow()
+{
+    const double epsilon = 0.1; // for numerical precision 
+    if (w &gt;= W - epsilon) return 1.0;
+    
+    else return 0.0;
+}
 
 // Import data reading functions
-import "/home/martijn/Documents/CLAIRE/NAHS-paper/libtable.so" {
+// TODO compile libtable.so on server and change path here.
+//	import "/home/cs.aau.dk/kj78uy/uppaal-libs/libtable.so" {
+import "/Users/mgoorden/Documents/uppaal-libs/libtable.dylib" {
     /** read the table from the csv file and return its id: */
     int table_read_csv(const string&amp; filename, int skip_lines);
     /** return the number of rows in the table: */
@@ -39,52 +75,19 @@ import "/home/martijn/Documents/CLAIRE/NAHS-paper/libtable.so" {
 </declaration>
 	<template>
 		<name>Pond</name>
-		<declaration>const double A_p = 2250 * 10000.0; // pond area A1 [cm2] 1 m2 -&gt; 10000 cm2
+		<declaration>const double A_p = 5.66 * 10000.0; // pond area A1 [cm2] 1 m2 -&gt; 10000 cm2
 
-// Orifice parameters
-const double C = 0.65; // discharge coefficient [-]
-const double d = 17.5; // maximum diameter [cm]
-const double g = 980.7; // gravitational acceleration [cm/s2]
-const double PI_4 = 0.785398163397448279; // Pi/4
-
-// Flow from urban catchment to pond. Eq. 2 in paper.
-double Qin()
-{
-    return S_UC * UC_k * A_UC;
-}
-
-// Open area of the orifice.
-double A()
-{
-    return PI_4 * d * d * Open * Open;
-}
-
-// Flow from the pond to the nearby stream through the orifice [cm3/min].
-double Qout()
-{
-     if (w &lt;= 0) return 0;
-
-    else return 60 * C * A() * sqrt(2 * g * w);
-}
 
 // Dynamics of the water level. Eqs. 4 and 5 in the paper combined.
 double pond_dynamics()
 {
-    if (w &lt;= 0 &amp;&amp; Qin() &lt;= Qout()) return 0;
+    if (w &lt;= W_min &amp;&amp; Qin() &lt;= Qout()) return 0;
 
     else if (w &gt;= W &amp;&amp; Qin() &gt;= Qout()) return 0; 
 
-    else return (Qin() - Qout()) / A_p;
+    else return (Qin() - Qout()) / A_p * 10.0;
 }
-
-// Cumulative overflow duration. Eq. 6 in the paper.
-double overflow()
-{
-    const double epsilon = 0.1; // for numerical precision 
-    if (w &gt;= W - epsilon) return 1.0;
-    
-    else return 0.0;
-}</declaration>
+</declaration>
 		<location id="id0" x="0" y="0">
 			<label kind="invariant" x="-76" y="17">w' == pond_dynamics() &amp;&amp;
 o' == overflow()</label>
@@ -93,43 +96,38 @@ o' == overflow()</label>
 	</template>
 	<template>
 		<name>CostFunction</name>
+		<declaration>double cost () {
+    // Particle sedimentation.
+    //1 - (w - W_min) / (W - W_min)
+    
+    return fmax(overflow() * (Qin() - Qout()), 0.0);
+}</declaration>
 		<location id="id1" x="0" y="0">
-			<label kind="invariant" x="-68" y="17">c' == 1 - w / W</label>
+			<label kind="invariant" x="-51" y="17">c' == cost()</label>
 		</location>
 		<init ref="id1"/>
 	</template>
 	<template>
-		<name>UrbanCatchment</name>
-		<location id="id2" x="0" y="0">
-			<label kind="invariant" x="-85" y="17">S_UC' == rain - (S_UC * UC_k)</label>
-		</location>
-		<init ref="id2"/>
-	</template>
-	<template>
 		<name>Controller</name>
-		<declaration>const int P = h; // control switching period [min]
-const int C = 3; // number of control modes
-const double Opening[C] = {1.0/7.0, 4.0/7.0, 7.0/7.0}; // orifice diameter opening modes
-
-clock x = 0.0; // control switching clock</declaration>
-		<location id="id3" x="0" y="0">
+		<declaration>clock x = 0.0; // control switching clock</declaration>
+		<location id="id2" x="0" y="0">
 			<label kind="invariant" x="-25" y="17">x &lt;= P</label>
 		</location>
-		<location id="id4" x="102" y="0">
+		<location id="id3" x="102" y="0">
 			<urgent/>
 		</location>
-		<init ref="id4"/>
-		<transition id="id5">
-			<source ref="id4"/>
-			<target ref="id3"/>
+		<init ref="id3"/>
+		<transition id="id4">
+			<source ref="id3"/>
+			<target ref="id2"/>
 			<label kind="select" x="8" y="-102">i:int[0,C-1]</label>
-			<label kind="assignment" x="-34" y="-85">x = 0, Open = Opening[i]</label>
+			<label kind="assignment" x="-34" y="-85">x = 0, PumpSetting = i</label>
 			<nail x="102" y="-59"/>
 			<nail x="0" y="-59"/>
 		</transition>
-		<transition id="id6" controllable="false">
-			<source ref="id3"/>
-			<target ref="id4"/>
+		<transition id="id5" controllable="false">
+			<source ref="id2"/>
+			<target ref="id3"/>
 			<label kind="guard" x="34" y="8">x==P</label>
 		</transition>
 	</template>
@@ -137,7 +135,7 @@ clock x = 0.0; // control switching clock</declaration>
 		<name>Rain</name>
 		<declaration>const int i_init = 0; // constant introduced, otherwise the duration boundaries cannot be initialized properly.
 int i = i_init; // current interval index
-int rainLoc = //TAG_Rain.rainLoc; // rain location, only used for online control. 0 = dry, 1 = raining
+int rainLoc = 0;//TAG_Rain.rainLoc; // rain location, only used for online control. 0 = dry, 1 = raining
 clock d = 0.0; // duration of dry or raining period [min]
 
 // Load weather forecast data from external data file.
@@ -193,35 +191,35 @@ double uniform(double lower, double upper)
     double sample = random(distance);
     return lower + sample;
 }</declaration>
-		<location id="id7" x="-153" y="-8">
+		<location id="id6" x="-153" y="-8">
 			<name x="-204" y="-17">Dry</name>
 			<label kind="invariant" x="-229" y="8">d &lt;= dryU</label>
 		</location>
-		<location id="id8" x="17" y="-8">
+		<location id="id7" x="17" y="-8">
 			<name x="34" y="-25">Raining</name>
 			<label kind="invariant" x="25" y="0">d &lt;= rainU</label>
 		</location>
-		<location id="id9" x="-68" y="170">
+		<location id="id8" x="-68" y="170">
 			<name x="-93" y="136">Start</name>
 			<urgent/>
 		</location>
-		<init ref="id9"/>
-		<transition id="id10" controllable="false">
-			<source ref="id9"/>
-			<target ref="id8"/>
+		<init ref="id8"/>
+		<transition id="id9" controllable="false">
+			<source ref="id8"/>
+			<target ref="id7"/>
 			<label kind="guard" x="-51" y="170">rainLoc == 1</label>
 			<label kind="assignment" x="25" y="144">rain = get_rain(i)*uniform(1 - e, 1 + e)</label>
 			<nail x="17" y="170"/>
 		</transition>
-		<transition id="id11" controllable="false">
-			<source ref="id9"/>
-			<target ref="id7"/>
+		<transition id="id10" controllable="false">
+			<source ref="id8"/>
+			<target ref="id6"/>
 			<label kind="guard" x="-178" y="170">rainLoc == 0</label>
 			<nail x="-153" y="170"/>
 		</transition>
-		<transition id="id12" controllable="false">
-			<source ref="id8"/>
-			<target ref="id7"/>
+		<transition id="id11" controllable="false">
+			<source ref="id7"/>
+			<target ref="id6"/>
 			<label kind="guard" x="-119" y="8">d &gt;= rainL</label>
 			<label kind="assignment" x="-136" y="34">d = 0, i++,
 dryL = get_dryL(i),
@@ -231,9 +229,9 @@ rainLoc = 0</label>
 			<nail x="-8" y="34"/>
 			<nail x="-127" y="34"/>
 		</transition>
-		<transition id="id13" controllable="false">
-			<source ref="id7"/>
-			<target ref="id8"/>
+		<transition id="id12" controllable="false">
+			<source ref="id6"/>
+			<target ref="id7"/>
 			<label kind="guard" x="-119" y="-42">d &gt;= dryL</label>
 			<label kind="assignment" x="-127" y="-153">d = 0,
 rainL = get_rainL(i),
@@ -244,11 +242,78 @@ rainLoc = 1</label>
 			<nail x="0" y="-51"/>
 		</transition>
 	</template>
-	<system>system Pond, Rain, UrbanCatchment, Controller, CostFunction;</system>
+	<template>
+		<name>RainExact</name>
+		<declaration>int i=0;
+clock d=0;
+
+// Load weather forecast data from external data file.
+// TODO change file location
+const int file_id = table_read_csv("/Users/mgoorden/Documents/Projects/CLAIRE/GitHub/ExperimentalSetUp/RainfallNowcast.txt", 1);
+const int rows = table_rows(file_id);
+const int cols = table_cols(file_id);
+
+double get_rain(int interval)
+{
+    // Unit is [my-m/s].
+	// TODO Check whether it should be interval or interval + 1.
+	if (interval &gt;= rows) return read_double(file_id, rows-1, 0);
+	
+    return read_double(file_id, interval, 0);
+}</declaration>
+		<location id="id13" x="-459" y="-17">
+			<label kind="invariant" x="-476" y="0">d&lt;=m</label>
+		</location>
+		<location id="id14" x="-459" y="-127">
+			<urgent/>
+		</location>
+		<init ref="id14"/>
+		<transition id="id15">
+			<source ref="id14"/>
+			<target ref="id13"/>
+			<label kind="assignment" x="-459" y="-119">rain=get_rain(i), i++</label>
+		</transition>
+		<transition id="id16" controllable="false">
+			<source ref="id13"/>
+			<target ref="id13"/>
+			<label kind="guard" x="-416" y="-25">d&gt;=m</label>
+			<label kind="assignment" x="-357" y="-51">d=0,i++,
+rain=get_rain(i)</label>
+			<nail x="-374" y="-68"/>
+			<nail x="-374" y="51"/>
+		</transition>
+	</template>
+	<template>
+		<name>RainFixed</name>
+		<declaration>int i=0;
+clock d=0;</declaration>
+		<location id="id17" x="-459" y="-17">
+			<label kind="invariant" x="-476" y="0">d&lt;=m</label>
+		</location>
+		<location id="id18" x="-459" y="-127">
+			<urgent/>
+		</location>
+		<init ref="id18"/>
+		<transition id="id19">
+			<source ref="id18"/>
+			<target ref="id17"/>
+			<label kind="assignment" x="-459" y="-119">rain=0, i++</label>
+		</transition>
+		<transition id="id20" controllable="false">
+			<source ref="id17"/>
+			<target ref="id17"/>
+			<label kind="guard" x="-416" y="-25">d&gt;=m</label>
+			<label kind="assignment" x="-357" y="-51">d=0,i++,
+rain=0</label>
+			<nail x="-374" y="-68"/>
+			<nail x="-374" y="51"/>
+		</transition>
+	</template>
+	<system>system Pond, RainExact, Controller, CostFunction;</system>
 	<queries>
 		<option key="--total-runs" value="50"/>
-		<option key="--discretization" value="0.5"/>
-		<option key="--good-runs" value="20"/>
+		<option key="--discretization" value="0.03"/>
+		<option key="--good-runs" value="10"/>
 		<option key="--eval-runs" value="10"/>
 		<option key="--runs-pr-state" value="10"/>
 		<query>
@@ -256,25 +321,376 @@ rainLoc = 1</label>
 			<comment/>
 		</query>
 		<query>
-			<formula>//simulate 10 [&lt;=72*h] {w, t}</formula>
+			<formula>simulate [&lt;=2*h; 1] {w, 100 * rain, 850, 300 * PumpSpeed[PumpSetting]}</formula>
 			<comment>Set in options -&gt; statistical parameters the 'discretization step for hybrid systems' to 
 0.5 to speed up calculation.</comment>
+			<result outcome="success" type="quality" timestamp="2023-09-21 16:54:28 +0200">
+				<option key="--total-runs" value="50"/>
+				<option key="--discretization" value="0.03"/>
+				<option key="--good-runs" value="10"/>
+				<option key="--eval-runs" value="10"/>
+				<option key="--runs-pr-state" value="10"/>
+				<plot title="Simulations (1)" xaxis="time" yaxis="value">
+					<series title="w" type="l" color="0xff0000" encoding="csv">0.0,700.0
+4.0,692.9112650176703
+14.0,692.7017950530052
+24.0,693.3079010600733
+34.0,717.2755053003567
+40.0,726.6485314487663
+44.0,738.9151552052194
+54.0,777.9075944550154
+60.0,816.3196629518974
+64.0,844.3348844794822
+64.72000000000003,849.9778082131055
+120.000002,849.9778082131055
+					</series>
+					<series title="100 * rain" type="l" color="0x80ff00" encoding="csv">0.0,0.0
+0.0,16.7
+4.0,16.7
+4.0,51.7
+14.0,51.7
+14.0,53.33
+24.0,53.33
+24.0,100.02
+34.0,100.02
+34.0,83.34
+44.0,83.34
+44.0,99.98
+54.0,99.98
+54.0,150.0
+64.0,150.0
+64.0,166.66
+74.0,166.66
+74.0,141.66
+84.0,141.66
+84.0,99.98
+94.0,99.98
+94.0,91.64
+104.0,91.64
+104.0,66.67999999999999
+114.0,66.67999999999999
+114.0,72.25
+120.000002,72.25
+					</series>
+					<series title="850" type="l" color="0x00ffff" encoding="csv">0.0,850.0
+120.000002,850.0
+					</series>
+					<series title="300 * PumpSpeed[PumpSetting]" type="l" color="0x8000ff" encoding="csv">0.0,0.0
+0.0,300.0
+40.0,300.0
+40.0,126.92307692307692
+60.0,126.92307692307692
+60.0,57.69230769230769
+80.0,57.69230769230769
+80.0,300.0
+100.0,300.0
+100.0,57.69230769230769
+120.0,57.69230769230769
+120.000002,126.92307692307692
+					</series>
+					<comment/>
+				</plot>
+			</result>
 		</query>
 		<query>
-			<formula>//E[&lt;=72*h; 100](max:o)</formula>
+			<formula>E[&lt;=2*h; 1000](max:o)</formula>
 			<comment>Set in options -&gt; statistical parameters the 'discretization step for hybrid systems' to 
 0.5 to speed up calculation.</comment>
+			<result outcome="success" type="quantity" value="37.2596 ± 1.00197 (95% CI)" timestamp="2023-09-21 09:24:37 +0200">
+				<option key="--total-runs" value="300"/>
+				<option key="--hashtable-size" value="29"/>
+				<option key="--good-runs" value="300"/>
+				<option key="--eval-runs" value="200"/>
+				<option key="--runs-pr-state" value="200"/>
+				<details>37.2596 ± 1.00197 (95% CI)</details>
+				<plot title="Probability Density Distribution" xaxis="max: o" yaxis="probability density">
+					<series title="density" type="b(2.148512)" color="0x0000ff" encoding="csv">0.0,0.011635962427048828
+2.148511578370628,0.0013963154912458595
+4.297023156741256,0.002792630982491719
+6.445534735111884,0.005119823467901485
+8.594046313482512,0.007912454450393203
+10.742557891853139,0.01023964693580297
+12.891069470223767,0.012566839421212735
+15.039581048594396,0.011635962427048828
+17.188092626965023,0.007447015953311251
+19.33660420533565,0.010705085432884922
+21.485115783706277,0.010705085432884922
+23.633627362076908,0.019082978380360077
+25.782138940447535,0.018152101386196173
+27.93065051881816,0.022806486357015703
+30.079162097188792,0.016755785894950314
+32.227673675559416,0.02094473236868789
+34.376185253930046,0.020013855374523985
+36.52469683230068,0.022341047859933752
+38.6732084106713,0.030253502310326953
+40.82171998904193,0.026064555836589377
+42.970231567412554,0.026064555836589377
+45.118743145783185,0.026529994333671328
+47.267254724153815,0.015359470403704454
+49.41576630252444,0.017221224392032265
+51.56427788089507,0.012101400924130782
+53.7127894592657,0.016755785894950314
+55.86130103763632,0.010705085432884922
+58.009812616006954,0.015359470403704454
+60.158324194377585,0.003258069479573672
+62.30683577274821,0.013497716415376641
+64.45534735111883,0.011170523929966876
+66.60385892948946,0.00884333144455711
+					</series>
+					<series title="average" type="pl" color="0x00dd00" encoding="csv">37.259575941902256,0.0
+37.259575941902256,0.030253502310326953
+					</series>
+					<comment>Parameters: α=0.05, ε=0.05, bucket width=2.1485, bucket count=32
+Runs: 1000 in total, 1000 (100%) displayed, 0 (0%) remaining
+Span of displayed sample: [0, 68.752]
+Mean estimate of displayed sample: 37.26 ± 1.002 (95% CI)</comment>
+				</plot>
+				<plot title="Probability Distribution" xaxis="max: o" yaxis="probability">
+					<series title="probability" type="b(2.148512)" color="0x0000ff" encoding="csv">0.0,0.025
+2.148511578370628,0.003
+4.297023156741256,0.006
+6.445534735111884,0.011
+8.594046313482512,0.017
+10.742557891853139,0.022
+12.891069470223767,0.027
+15.039581048594396,0.025
+17.188092626965023,0.016
+19.33660420533565,0.023
+21.485115783706277,0.023
+23.633627362076908,0.041
+25.782138940447535,0.039
+27.93065051881816,0.049
+30.079162097188792,0.036
+32.227673675559416,0.045
+34.376185253930046,0.043
+36.52469683230068,0.048
+38.6732084106713,0.065
+40.82171998904193,0.056
+42.970231567412554,0.056
+45.118743145783185,0.057
+47.267254724153815,0.033
+49.41576630252444,0.037
+51.56427788089507,0.026
+53.7127894592657,0.036
+55.86130103763632,0.023
+58.009812616006954,0.033
+60.158324194377585,0.007
+62.30683577274821,0.029
+64.45534735111883,0.024
+66.60385892948946,0.019
+					</series>
+					<series title="average" type="pl" color="0x00dd00" encoding="csv">37.259575941902256,0.0
+37.259575941902256,0.065
+					</series>
+					<comment>Parameters: α=0.05, ε=0.05, bucket width=2.1485, bucket count=32
+Runs: 1000 in total, 1000 (100%) displayed, 0 (0%) remaining
+Span of displayed sample: [0, 68.752]
+Mean estimate of displayed sample: 37.26 ± 1.002 (95% CI)</comment>
+				</plot>
+				<plot title="Cumulative Probability Distribution" xaxis="max: o" yaxis="probability">
+					<series title="cumulative" type="l" color="0x000000" encoding="csv">0.0,0.0
+2.148511578370628,0.025
+4.297023156741256,0.028
+6.445534735111884,0.034
+8.594046313482512,0.045
+10.742557891853139,0.062
+12.891069470223767,0.084
+15.039581048594396,0.111
+17.188092626965023,0.136
+19.33660420533565,0.152
+21.485115783706277,0.175
+23.633627362076908,0.198
+25.782138940447535,0.239
+27.93065051881816,0.278
+30.079162097188792,0.327
+32.227673675559416,0.363
+34.376185253930046,0.408
+36.52469683230068,0.451
+38.6732084106713,0.499
+40.82171998904193,0.564
+42.970231567412554,0.62
+45.118743145783185,0.676
+47.267254724153815,0.733
+49.41576630252444,0.766
+51.56427788089507,0.803
+53.7127894592657,0.829
+55.86130103763632,0.865
+58.009812616006954,0.888
+60.158324194377585,0.921
+62.30683577274821,0.928
+64.45534735111883,0.957
+66.60385892948946,0.981
+					</series>
+					<series title="average" type="pl" color="0x00dd00" encoding="csv">37.259575941902256,0.0
+37.259575941902256,1.0
+					</series>
+					<comment>Parameters: α=0.05, ε=0.05, bucket width=2.1485, bucket count=32
+Runs: 1000 in total, 1000 (100%) displayed, 0 (0%) remaining
+Span of displayed sample: [0, 68.752]
+Mean estimate of displayed sample: 37.26 ± 1.002 (95% CI)</comment>
+				</plot>
+				<plot title="Cumulative Probability Confidence Intervals" xaxis="max: o" yaxis="probability">
+					<series title="upper limit" type="k" color="0x0000dd" encoding="csv">0.0,0.003682083896865672
+2.148511578370628,0.03668482305192305
+4.297023156741256,0.040214887373843315
+6.445534735111884,0.04718943861570743
+8.594046313482512,0.05975283269340779
+10.742557891853139,0.0787799496610325
+12.891069470223767,0.10294299899173502
+15.039581048594396,0.13212606175869215
+17.188092626965023,0.15881863091402174
+19.33660420533565,0.17577246873311267
+21.485115783706277,0.19999682556933693
+23.633627362076908,0.22407220517161827
+25.782138940447535,0.2666786188852103
+27.93065051881816,0.3068938177281916
+30.079162097188792,0.35705289727642153
+32.227673675559416,0.3936725204750732
+34.376185253930046,0.4391946775594001
+36.52469683230068,0.4824466650475674
+38.6732084106713,0.5304537166614579
+40.82171998904193,0.5950076248194501
+42.970231567412554,0.6501929780067928
+45.118743145783185,0.7049523515568271
+47.267254724153815,0.7602000487931145
+49.41576630252444,0.7919259196245902
+51.56427788089507,0.8272302494643351
+53.7127894592657,0.851840151816802
+55.86130103763632,0.8855809495734869
+58.009812616006954,0.9068814600783898
+60.158324194377585,0.9369587971905401
+62.30683577274821,0.9432413124454383
+64.45534735111883,0.9687088295439074
+66.60385892948946,0.988522963006899
+					</series>
+					<series title="lower limit" type="k" color="0xdd0000" encoding="csv">0.0,0.0
+2.148511578370628,0.01624253569688223
+4.297023156741256,0.018684686195537564
+6.445534735111884,0.02365864810759674
+8.594046313482512,0.03300962543114874
+10.742557891853139,0.0478618481133612
+12.891069470223767,0.06755274197058321
+15.039581048594396,0.09219790720419102
+17.188092626965023,0.11535017762388163
+19.33660420533565,0.13029825032498193
+21.485115783706277,0.15193403290953064
+23.633627362076908,0.17371978110414948
+25.782138940447535,0.2128674903759091
+27.93065051881816,0.25041975045140225
+30.079162097188792,0.29796968761860143
+32.227673675559416,0.3331368399380181
+34.376185253930046,0.37734858444460107
+36.52469683230068,0.4198426065353633
+38.6732084106713,0.4675521862537381
+40.82171998904193,0.5326145242345783
+42.970231567412554,0.5890982340617007
+45.118743145783185,0.6460072766157738
+47.267254724153815,0.7044208965885984
+49.41576630252444,0.7384980761844332
+51.56427788089507,0.7769717429246101
+53.7127894592657,0.8042047464024096
+55.86130103763632,0.8422440844487806
+58.009812616006954,0.8668008344307598
+60.158324194377585,0.9025129050930988
+62.30683577274821,0.9101842508246492
+64.45534735111883,0.9425137420380276
+66.60385892948946,0.9704875983749022
+					</series>
+					<series title="cumulative" type="l" color="0x000000" encoding="csv">0.0,0.0
+2.148511578370628,0.025
+4.297023156741256,0.028
+6.445534735111884,0.034
+8.594046313482512,0.045
+10.742557891853139,0.062
+12.891069470223767,0.084
+15.039581048594396,0.111
+17.188092626965023,0.136
+19.33660420533565,0.152
+21.485115783706277,0.175
+23.633627362076908,0.198
+25.782138940447535,0.239
+27.93065051881816,0.278
+30.079162097188792,0.327
+32.227673675559416,0.363
+34.376185253930046,0.408
+36.52469683230068,0.451
+38.6732084106713,0.499
+40.82171998904193,0.564
+42.970231567412554,0.62
+45.118743145783185,0.676
+47.267254724153815,0.733
+49.41576630252444,0.766
+51.56427788089507,0.803
+53.7127894592657,0.829
+55.86130103763632,0.865
+58.009812616006954,0.888
+60.158324194377585,0.921
+62.30683577274821,0.928
+64.45534735111883,0.957
+66.60385892948946,0.981
+					</series>
+					<series title="average" type="pl" color="0x00dd00" encoding="csv">37.259575941902256,0.0
+37.259575941902256,1.0
+					</series>
+					<comment>Parameters: α=0.05, ε=0.05, bucket width=2.1485, bucket count=32
+Runs: 1000 in total, 1000 (100%) displayed, 0 (0%) remaining
+Span of displayed sample: [0, 68.752]
+Mean estimate of displayed sample: 37.26 ± 1.002 (95% CI)</comment>
+				</plot>
+				<plot title="Frequency Histogram" xaxis="max: o" yaxis="count">
+					<series title="count" type="b(2.148512)" color="0x0000ff" encoding="csv">0.0,25.0
+2.148511578370628,3.0
+4.297023156741256,6.0
+6.445534735111884,11.0
+8.594046313482512,17.0
+10.742557891853139,22.0
+12.891069470223767,27.0
+15.039581048594396,25.0
+17.188092626965023,16.0
+19.33660420533565,23.0
+21.485115783706277,23.0
+23.633627362076908,41.0
+25.782138940447535,39.0
+27.93065051881816,49.0
+30.079162097188792,36.0
+32.227673675559416,45.0
+34.376185253930046,43.0
+36.52469683230068,48.0
+38.6732084106713,65.0
+40.82171998904193,56.0
+42.970231567412554,56.0
+45.118743145783185,57.0
+47.267254724153815,33.0
+49.41576630252444,37.0
+51.56427788089507,26.0
+53.7127894592657,36.0
+55.86130103763632,23.0
+58.009812616006954,33.0
+60.158324194377585,7.0
+62.30683577274821,29.0
+64.45534735111883,24.0
+66.60385892948946,19.0
+					</series>
+					<series title="average" type="pl" color="0x00dd00" encoding="csv">37.259575941902256,0.0
+37.259575941902256,65.0
+					</series>
+					<comment>Parameters: α=0.05, ε=0.05, bucket width=2.1485, bucket count=32
+Runs: 1000 in total, 1000 (100%) displayed, 0 (0%) remaining
+Span of displayed sample: [0, 68.752]
+Mean estimate of displayed sample: 37.26 ± 1.002 (95% CI)</comment>
+				</plot>
+			</result>
 		</query>
 		<query>
 			<formula/>
 			<comment/>
 		</query>
 		<query>
-			<formula>// Optimal control</formula>
+			<formula>// Optimal control with respect to only overflow</formula>
 			<comment/>
 		</query>
 		<query>
-			<formula>strategy opt = minE (c) [&lt;=72*h]: &lt;&gt; (t==72*h &amp;&amp; o &lt;= 0)</formula>
+			<formula>strategy opt = minE (o) [&lt;=2*h]: &lt;&gt; (t==2*h)</formula>
 			<comment>Notice that with o being monotonically increasing, the []o &lt;= 0 equals &lt;&gt;o &lt;= 0. Therefore, we can combine the synthesis 
 of a safe and optimal strategy a single query.
 Set in options -&gt; statistical parameters the 'discretization step for hybrid systems' to 
@@ -282,23 +698,911 @@ Set in options -&gt; statistical parameters the 'discretization step for hybrid 
 Set in options -&gt; learning parameters the first four parameters to 40, 100, 20, 20 (in that order) 
 to speed up the calculation.
 3000 runs in approximately 2.5 minutes.</comment>
+			<result outcome="success" type="quality" timestamp="2023-09-21 16:55:05 +0200">
+				<option key="--total-runs" value="50"/>
+				<option key="--discretization" value="0.03"/>
+				<option key="--good-runs" value="10"/>
+				<option key="--eval-runs" value="10"/>
+				<option key="--runs-pr-state" value="10"/>
+			</result>
 		</query>
 		<query>
-			<formula>E[&lt;=72*h; 1000] (max:o) under opt</formula>
+			<formula>strategy opt = minE (c) [&lt;=2*h]: &lt;&gt; (t==2*h)</formula>
+			<comment/>
+			<result outcome="success" type="quality" timestamp="2023-09-21 16:56:36 +0200">
+				<option key="--total-runs" value="50"/>
+				<option key="--discretization" value="0.03"/>
+				<option key="--good-runs" value="10"/>
+				<option key="--eval-runs" value="10"/>
+				<option key="--runs-pr-state" value="10"/>
+			</result>
+		</query>
+		<query>
+			<formula>E[&lt;=2*h; 1000] (max:o) under opt</formula>
 			<comment>Should be 0, as we synthesized a strategy with guarantees on this variable.
 Set in options -&gt; statistical parameters the 'discretization step for hybrid systems' to 
 0.5 to speed up calculation.</comment>
+			<result outcome="success" type="quantity" value="≈ 48.31" timestamp="2023-09-21 16:57:10 +0200">
+				<option key="--total-runs" value="50"/>
+				<option key="--discretization" value="0.03"/>
+				<option key="--good-runs" value="10"/>
+				<option key="--eval-runs" value="10"/>
+				<option key="--runs-pr-state" value="10"/>
+				<details>≈ 48.31</details>
+				<plot title="Probability Density Distribution" xaxis="max: o" yaxis="probability density">
+					<series title="density" type="b(0.000000)" color="0x0000ff" encoding="csv">48.310001999999976,4.503599627370496E15
+					</series>
+					<series title="average" type="pl" color="0x00dd00" encoding="csv">48.310001999999976,0.0
+48.310001999999976,4.503599627370496E15
+					</series>
+					<comment>Parameters: α=0.05, ε=0.05, bucket width=2.2204e-16, bucket count=1
+Runs: 1000 in total, 1000 (100%) displayed, 0 (0%) remaining
+Span of displayed sample: [48.310002, 48.310002]
+Mean estimate of displayed sample: ≈ 48.310002</comment>
+				</plot>
+				<plot title="Probability Distribution" xaxis="max: o" yaxis="probability">
+					<series title="probability" type="b(0.000000)" color="0x0000ff" encoding="csv">48.310001999999976,1.0
+					</series>
+					<series title="average" type="pl" color="0x00dd00" encoding="csv">48.310001999999976,0.0
+48.310001999999976,1.0
+					</series>
+					<comment>Parameters: α=0.05, ε=0.05, bucket width=2.2204e-16, bucket count=1
+Runs: 1000 in total, 1000 (100%) displayed, 0 (0%) remaining
+Span of displayed sample: [48.310002, 48.310002]
+Mean estimate of displayed sample: ≈ 48.310002</comment>
+				</plot>
+				<plot title="Cumulative Probability Distribution" xaxis="max: o" yaxis="probability">
+					<series title="cumulative" type="l" color="0x000000" encoding="csv">48.310001999999976,0.0
+					</series>
+					<series title="average" type="pl" color="0x00dd00" encoding="csv">48.310001999999976,0.0
+48.310001999999976,1.0
+					</series>
+					<comment>Parameters: α=0.05, ε=0.05, bucket width=2.2204e-16, bucket count=1
+Runs: 1000 in total, 1000 (100%) displayed, 0 (0%) remaining
+Span of displayed sample: [48.310002, 48.310002]
+Mean estimate of displayed sample: ≈ 48.310002</comment>
+				</plot>
+				<plot title="Cumulative Probability Confidence Intervals" xaxis="max: o" yaxis="probability">
+					<series title="upper limit" type="k" color="0x0000dd" encoding="csv">48.310001999999976,0.003682083896865672
+					</series>
+					<series title="lower limit" type="k" color="0xdd0000" encoding="csv">48.310001999999976,0.0
+					</series>
+					<series title="cumulative" type="l" color="0x000000" encoding="csv">48.310001999999976,0.0
+					</series>
+					<series title="average" type="pl" color="0x00dd00" encoding="csv">48.310001999999976,0.0
+48.310001999999976,1.0
+					</series>
+					<comment>Parameters: α=0.05, ε=0.05, bucket width=2.2204e-16, bucket count=1
+Runs: 1000 in total, 1000 (100%) displayed, 0 (0%) remaining
+Span of displayed sample: [48.310002, 48.310002]
+Mean estimate of displayed sample: ≈ 48.310002</comment>
+				</plot>
+				<plot title="Frequency Histogram" xaxis="max: o" yaxis="count">
+					<series title="count" type="b(0.000000)" color="0x0000ff" encoding="csv">48.310001999999976,1000.0
+					</series>
+					<series title="average" type="pl" color="0x00dd00" encoding="csv">48.310001999999976,0.0
+48.310001999999976,1000.0
+					</series>
+					<comment>Parameters: α=0.05, ε=0.05, bucket width=2.2204e-16, bucket count=1
+Runs: 1000 in total, 1000 (100%) displayed, 0 (0%) remaining
+Span of displayed sample: [48.310002, 48.310002]
+Mean estimate of displayed sample: ≈ 48.310002</comment>
+				</plot>
+			</result>
 		</query>
 		<query>
-			<formula>E[&lt;=72*h; 1000] (max:c) under opt</formula>
+			<formula>E[&lt;=2*h; 1000] (max:c) under opt</formula>
 			<comment>Approximately 2480.
 Set in options -&gt; statistical parameters the 'discretization step for hybrid systems' to 
 0.5 to speed up calculation.</comment>
+			<result outcome="success" type="quantity" value="651426 ± 0.000690132 (95% CI)" timestamp="2023-09-21 16:57:30 +0200">
+				<option key="--total-runs" value="50"/>
+				<option key="--discretization" value="0.03"/>
+				<option key="--good-runs" value="10"/>
+				<option key="--eval-runs" value="10"/>
+				<option key="--runs-pr-state" value="10"/>
+				<details>651426 ± 0.000690132 (95% CI)</details>
+				<plot title="Probability Density Distribution" xaxis="max: c" yaxis="probability density">
+					<series title="density" type="b(0.000922)" color="0x0000ff" encoding="csv">651425.9701223979,282.9268294421715
+651425.9710448979,0.0
+651425.9719673978,0.0
+651425.9728898979,0.0
+651425.9738123979,0.0
+651425.9747348978,0.0
+651425.9756573979,0.0
+651425.9765798979,0.0
+651425.9775023978,0.0
+651425.9784248979,0.0
+651425.9793473979,0.0
+651425.9802698978,0.0
+651425.9811923979,0.0
+651425.9821148979,0.0
+651425.9830373978,0.0
+651425.9839598979,0.0
+651425.9848823979,0.0
+651425.9858048978,0.0
+651425.9867273979,271.00271019365084
+651425.9876498978,0.0
+651425.9885723979,0.0
+651425.9894948979,0.0
+651425.9904173978,0.0
+651425.9913398979,0.0
+651425.9922623979,0.0
+651425.9931848978,280.7588077606223
+651425.9941073979,0.0
+651425.9950298979,0.0
+651425.9959523978,0.0
+651425.9968748979,0.0
+651425.9977973979,0.0
+651425.9987198978,249.3224933781588
+					</series>
+					<series title="average" type="pl" color="0x00dd00" encoding="csv">651425.9873450471,0.0
+651425.9873450471,282.92682944217154
+					</series>
+					<comment>Parameters: α=0.05, ε=0.05, bucket width=0.0009225, bucket count=32
+Runs: 1000 in total, 1000 (100%) displayed, 0 (0%) remaining
+Span of displayed sample: [651425.970122, 651425.999642]
+Mean estimate of displayed sample: 651425.987345 ± 0.000690131564625 (95% CI)</comment>
+				</plot>
+				<plot title="Probability Distribution" xaxis="max: c" yaxis="probability">
+					<series title="probability" type="b(0.000922)" color="0x0000ff" encoding="csv">651425.9701223979,0.261
+651425.9710448979,0.0
+651425.9719673978,0.0
+651425.9728898979,0.0
+651425.9738123979,0.0
+651425.9747348978,0.0
+651425.9756573979,0.0
+651425.9765798979,0.0
+651425.9775023978,0.0
+651425.9784248979,0.0
+651425.9793473979,0.0
+651425.9802698978,0.0
+651425.9811923979,0.0
+651425.9821148979,0.0
+651425.9830373978,0.0
+651425.9839598979,0.0
+651425.9848823979,0.0
+651425.9858048978,0.0
+651425.9867273979,0.25
+651425.9876498978,0.0
+651425.9885723979,0.0
+651425.9894948979,0.0
+651425.9904173978,0.0
+651425.9913398979,0.0
+651425.9922623979,0.0
+651425.9931848978,0.259
+651425.9941073979,0.0
+651425.9950298979,0.0
+651425.9959523978,0.0
+651425.9968748979,0.0
+651425.9977973979,0.0
+651425.9987198978,0.23
+					</series>
+					<series title="average" type="pl" color="0x00dd00" encoding="csv">651425.9873450471,0.0
+651425.9873450471,0.261
+					</series>
+					<comment>Parameters: α=0.05, ε=0.05, bucket width=0.0009225, bucket count=32
+Runs: 1000 in total, 1000 (100%) displayed, 0 (0%) remaining
+Span of displayed sample: [651425.970122, 651425.999642]
+Mean estimate of displayed sample: 651425.987345 ± 0.000690131564625 (95% CI)</comment>
+				</plot>
+				<plot title="Cumulative Probability Distribution" xaxis="max: c" yaxis="probability">
+					<series title="cumulative" type="l" color="0x000000" encoding="csv">651425.9701223979,0.0
+651425.9710448979,0.261
+651425.9719673978,0.261
+651425.9728898979,0.261
+651425.9738123979,0.261
+651425.9747348978,0.261
+651425.9756573979,0.261
+651425.9765798979,0.261
+651425.9775023978,0.261
+651425.9784248979,0.261
+651425.9793473979,0.261
+651425.9802698978,0.261
+651425.9811923979,0.261
+651425.9821148979,0.261
+651425.9830373978,0.261
+651425.9839598979,0.261
+651425.9848823979,0.261
+651425.9858048978,0.261
+651425.9867273979,0.261
+651425.9876498978,0.511
+651425.9885723979,0.511
+651425.9894948979,0.511
+651425.9904173978,0.511
+651425.9913398979,0.511
+651425.9922623979,0.511
+651425.9931848978,0.511
+651425.9941073979,0.77
+651425.9950298979,0.77
+651425.9959523978,0.77
+651425.9968748979,0.77
+651425.9977973979,0.77
+651425.9987198978,0.77
+					</series>
+					<series title="average" type="pl" color="0x00dd00" encoding="csv">651425.9873450471,0.0
+651425.9873450471,1.0
+					</series>
+					<comment>Parameters: α=0.05, ε=0.05, bucket width=0.0009225, bucket count=32
+Runs: 1000 in total, 1000 (100%) displayed, 0 (0%) remaining
+Span of displayed sample: [651425.970122, 651425.999642]
+Mean estimate of displayed sample: 651425.987345 ± 0.000690131564625 (95% CI)</comment>
+				</plot>
+				<plot title="Cumulative Probability Confidence Intervals" xaxis="max: c" yaxis="probability">
+					<series title="upper limit" type="k" color="0x0000dd" encoding="csv">651425.9701223979,0.003682083896865672
+651425.9710448979,0.2893984088936515
+651425.9719673978,0.2893984088936515
+651425.9728898979,0.2893984088936515
+651425.9738123979,0.2893984088936515
+651425.9747348978,0.2893984088936515
+651425.9756573979,0.2893984088936515
+651425.9765798979,0.2893984088936515
+651425.9775023978,0.2893984088936515
+651425.9784248979,0.2893984088936515
+651425.9793473979,0.2893984088936515
+651425.9802698978,0.2893984088936515
+651425.9811923979,0.2893984088936515
+651425.9821148979,0.2893984088936515
+651425.9830373978,0.2893984088936515
+651425.9839598979,0.2893984088936515
+651425.9848823979,0.2893984088936515
+651425.9858048978,0.2893984088936515
+651425.9867273979,0.2893984088936515
+651425.9876498978,0.5424108791915636
+651425.9885723979,0.5424108791915636
+651425.9894948979,0.5424108791915636
+651425.9904173978,0.5424108791915636
+651425.9913398979,0.5424108791915636
+651425.9922623979,0.5424108791915636
+651425.9931848978,0.5424108791915636
+651425.9941073979,0.7957569815143822
+651425.9950298979,0.7957569815143822
+651425.9959523978,0.7957569815143822
+651425.9968748979,0.7957569815143822
+651425.9977973979,0.7957569815143822
+651425.9987198978,0.7957569815143822
+					</series>
+					<series title="lower limit" type="k" color="0xdd0000" encoding="csv">651425.9701223979,0.0
+651425.9710448979,0.2340163968420651
+651425.9719673978,0.2340163968420651
+651425.9728898979,0.2340163968420651
+651425.9738123979,0.2340163968420651
+651425.9747348978,0.2340163968420651
+651425.9756573979,0.2340163968420651
+651425.9765798979,0.2340163968420651
+651425.9775023978,0.2340163968420651
+651425.9784248979,0.2340163968420651
+651425.9793473979,0.2340163968420651
+651425.9802698978,0.2340163968420651
+651425.9811923979,0.2340163968420651
+651425.9821148979,0.2340163968420651
+651425.9830373978,0.2340163968420651
+651425.9839598979,0.2340163968420651
+651425.9848823979,0.2340163968420651
+651425.9858048978,0.2340163968420651
+651425.9867273979,0.2340163968420651
+651425.9876498978,0.4795241884209002
+651425.9885723979,0.4795241884209002
+651425.9894948979,0.4795241884209002
+651425.9904173978,0.4795241884209002
+651425.9913398979,0.4795241884209002
+651425.9922623979,0.4795241884209002
+651425.9931848978,0.4795241884209002
+651425.9941073979,0.74264308249677
+651425.9950298979,0.74264308249677
+651425.9959523978,0.74264308249677
+651425.9968748979,0.74264308249677
+651425.9977973979,0.74264308249677
+651425.9987198978,0.74264308249677
+					</series>
+					<series title="cumulative" type="l" color="0x000000" encoding="csv">651425.9701223979,0.0
+651425.9710448979,0.261
+651425.9719673978,0.261
+651425.9728898979,0.261
+651425.9738123979,0.261
+651425.9747348978,0.261
+651425.9756573979,0.261
+651425.9765798979,0.261
+651425.9775023978,0.261
+651425.9784248979,0.261
+651425.9793473979,0.261
+651425.9802698978,0.261
+651425.9811923979,0.261
+651425.9821148979,0.261
+651425.9830373978,0.261
+651425.9839598979,0.261
+651425.9848823979,0.261
+651425.9858048978,0.261
+651425.9867273979,0.261
+651425.9876498978,0.511
+651425.9885723979,0.511
+651425.9894948979,0.511
+651425.9904173978,0.511
+651425.9913398979,0.511
+651425.9922623979,0.511
+651425.9931848978,0.511
+651425.9941073979,0.77
+651425.9950298979,0.77
+651425.9959523978,0.77
+651425.9968748979,0.77
+651425.9977973979,0.77
+651425.9987198978,0.77
+					</series>
+					<series title="average" type="pl" color="0x00dd00" encoding="csv">651425.9873450471,0.0
+651425.9873450471,1.0
+					</series>
+					<comment>Parameters: α=0.05, ε=0.05, bucket width=0.0009225, bucket count=32
+Runs: 1000 in total, 1000 (100%) displayed, 0 (0%) remaining
+Span of displayed sample: [651425.970122, 651425.999642]
+Mean estimate of displayed sample: 651425.987345 ± 0.000690131564625 (95% CI)</comment>
+				</plot>
+				<plot title="Frequency Histogram" xaxis="max: c" yaxis="count">
+					<series title="count" type="b(0.000922)" color="0x0000ff" encoding="csv">651425.9701223979,261.0
+651425.9710448979,0.0
+651425.9719673978,0.0
+651425.9728898979,0.0
+651425.9738123979,0.0
+651425.9747348978,0.0
+651425.9756573979,0.0
+651425.9765798979,0.0
+651425.9775023978,0.0
+651425.9784248979,0.0
+651425.9793473979,0.0
+651425.9802698978,0.0
+651425.9811923979,0.0
+651425.9821148979,0.0
+651425.9830373978,0.0
+651425.9839598979,0.0
+651425.9848823979,0.0
+651425.9858048978,0.0
+651425.9867273979,250.0
+651425.9876498978,0.0
+651425.9885723979,0.0
+651425.9894948979,0.0
+651425.9904173978,0.0
+651425.9913398979,0.0
+651425.9922623979,0.0
+651425.9931848978,259.0
+651425.9941073979,0.0
+651425.9950298979,0.0
+651425.9959523978,0.0
+651425.9968748979,0.0
+651425.9977973979,0.0
+651425.9987198978,230.0
+					</series>
+					<series title="average" type="pl" color="0x00dd00" encoding="csv">651425.9873450471,0.0
+651425.9873450471,261.0
+					</series>
+					<comment>Parameters: α=0.05, ε=0.05, bucket width=0.0009225, bucket count=32
+Runs: 1000 in total, 1000 (100%) displayed, 0 (0%) remaining
+Span of displayed sample: [651425.970122, 651425.999642]
+Mean estimate of displayed sample: 651425.987345 ± 0.000690131564625 (95% CI)</comment>
+				</plot>
+			</result>
 		</query>
 		<query>
-			<formula>//simulate 10 [&lt;=72*h] {w} under opt</formula>
+			<formula>simulate [&lt;=2*h; 10] {w, 100*rain, 850, 300 * PumpSpeed[PumpSetting]} under opt</formula>
 			<comment>Set in options -&gt; statistical parameters the 'discretization step for hybrid systems' to 
 0.5 to speed up calculation.</comment>
+			<result outcome="success" type="quality" timestamp="2023-09-21 16:56:41 +0200">
+				<option key="--total-runs" value="50"/>
+				<option key="--discretization" value="0.03"/>
+				<option key="--good-runs" value="10"/>
+				<option key="--eval-runs" value="10"/>
+				<option key="--runs-pr-state" value="10"/>
+				<plot title="Simulations (10)" xaxis="time" yaxis="value">
+					<series title="w" type="l" color="0xff0000" encoding="csv">0.0,700.0
+4.0,692.9112650176671
+14.0,692.7017950530025
+24.0,693.3079010600705
+34.0,717.275505300354
+44.0,732.8972155477036
+54.0,756.8448056537088
+64.0,805.8200706713735
+71.69000000000003,849.8923465159029
+84.0,849.8923465159029
+84.03,849.9641892862209
+104.0,849.9641892862209
+104.03,849.9860467561855
+120.000002,849.9860467561855
+					</series>
+					<series title="" type="l" color="0xff0909" encoding="csv">0.0,700.0
+4.0,692.9112650176671
+14.0,692.7017950530025
+24.0,693.3079010600705
+34.0,717.275505300354
+44.0,732.8972155477036
+54.0,756.8448056537088
+64.0,805.8200706713735
+71.69000000000003,849.8923465159029
+84.0,849.8923465159029
+84.03,849.9641892862209
+104.0,849.9641892862209
+104.03,849.9860467561855
+120.000002,849.9860467561855
+					</series>
+					<series title="" type="l" color="0xff1212" encoding="csv">0.0,700.0
+4.0,692.9112650176671
+14.0,692.7017950530025
+24.0,693.3079010600705
+34.0,717.275505300354
+44.0,732.8972155477036
+54.0,756.8448056537088
+64.0,805.8200706713735
+71.69000000000003,849.8923465159029
+84.0,849.8923465159029
+84.03,849.9641892862209
+104.0,849.9641892862209
+104.03,849.9860467561855
+120.000002,849.9860467561855
+					</series>
+					<series title="" type="l" color="0xff1b1b" encoding="csv">0.0,700.0
+4.0,692.9112650176671
+14.0,692.7017950530025
+24.0,693.3079010600705
+34.0,717.275505300354
+44.0,732.8972155477036
+54.0,756.8448056537088
+64.0,805.8200706713735
+71.69000000000003,849.8923465159029
+84.0,849.8923465159029
+84.03,849.9641892862209
+104.0,849.9641892862209
+104.03,849.9860467561855
+120.000002,849.9860467561855
+					</series>
+					<series title="" type="l" color="0xff2424" encoding="csv">0.0,700.0
+4.0,692.9112650176671
+14.0,692.7017950530025
+24.0,693.3079010600705
+34.0,717.275505300354
+44.0,732.8972155477036
+54.0,756.8448056537088
+64.0,805.8200706713735
+71.69000000000003,849.8923465159029
+84.0,849.8923465159029
+84.03,849.9641892862209
+104.0,849.9641892862209
+104.03,849.9860467561855
+120.000002,849.9860467561855
+					</series>
+					<series title="" type="l" color="0xff2d2d" encoding="csv">0.0,700.0
+4.0,692.9112650176671
+14.0,692.7017950530025
+24.0,693.3079010600705
+34.0,717.275505300354
+44.0,732.8972155477036
+54.0,756.8448056537088
+64.0,805.8200706713735
+71.69000000000003,849.8923465159029
+84.0,849.8923465159029
+84.03,849.9641892862209
+104.0,849.9641892862209
+104.03,849.9860467561855
+120.000002,849.9860467561855
+					</series>
+					<series title="" type="l" color="0xff3636" encoding="csv">0.0,700.0
+4.0,692.9112650176671
+14.0,692.7017950530025
+24.0,693.3079010600705
+34.0,717.275505300354
+44.0,732.8972155477036
+54.0,756.8448056537088
+64.0,805.8200706713735
+71.69000000000003,849.8923465159029
+84.0,849.8923465159029
+84.03,849.9641892862209
+104.0,849.9641892862209
+104.03,849.9860467561855
+120.000002,849.9860467561855
+					</series>
+					<series title="" type="l" color="0xff3e3e" encoding="csv">0.0,700.0
+4.0,692.9112650176671
+14.0,692.7017950530025
+24.0,693.3079010600705
+34.0,717.275505300354
+44.0,732.8972155477036
+54.0,756.8448056537088
+64.0,805.8200706713735
+71.69000000000003,849.8923465159029
+84.0,849.8923465159029
+84.03,849.9641892862209
+104.0,849.9641892862209
+104.03,849.9860467561855
+120.000002,849.9860467561855
+					</series>
+					<series title="" type="l" color="0xff4747" encoding="csv">0.0,700.0
+4.0,692.9112650176671
+14.0,692.7017950530025
+24.0,693.3079010600705
+34.0,717.275505300354
+44.0,732.8972155477036
+54.0,756.8448056537088
+64.0,805.8200706713735
+71.69000000000003,849.8923465159029
+84.0,849.8923465159029
+84.03,849.9641892862209
+104.0,849.9641892862209
+104.03,849.9860467561855
+120.000002,849.9860467561855
+					</series>
+					<series title="" type="l" color="0xff5050" encoding="csv">0.0,700.0
+4.0,692.9112650176671
+14.0,692.7017950530025
+24.0,693.3079010600705
+34.0,717.275505300354
+44.0,732.8972155477036
+54.0,756.8448056537088
+64.0,805.8200706713735
+71.69000000000003,849.8923465159029
+84.0,849.8923465159029
+84.03,849.9641892862209
+104.0,849.9641892862209
+104.03,849.9860467561855
+120.000002,849.9860467561855
+					</series>
+					<series title="100 * rain" type="l" color="0x80ff00" encoding="csv">0.0,0.0
+0.0,16.7
+4.0,16.7
+4.0,51.7
+14.0,51.7
+14.0,53.33
+24.0,53.33
+24.0,100.02
+34.0,100.02
+34.0,83.34
+44.0,83.34
+44.0,99.98
+54.0,99.98
+54.0,150.0
+64.0,150.0
+64.0,166.66
+74.0,166.66
+74.0,141.66
+84.0,141.66
+84.0,99.98
+94.0,99.98
+94.0,91.64
+104.0,91.64
+104.0,66.67999999999999
+114.0,66.67999999999999
+114.0,72.25
+120.000002,72.25
+					</series>
+					<series title="" type="l" color="0x84ff09" encoding="csv">0.0,0.0
+0.0,16.7
+4.0,16.7
+4.0,51.7
+14.0,51.7
+14.0,53.33
+24.0,53.33
+24.0,100.02
+34.0,100.02
+34.0,83.34
+44.0,83.34
+44.0,99.98
+54.0,99.98
+54.0,150.0
+64.0,150.0
+64.0,166.66
+74.0,166.66
+74.0,141.66
+84.0,141.66
+84.0,99.98
+94.0,99.98
+94.0,91.64
+104.0,91.64
+104.0,66.67999999999999
+114.0,66.67999999999999
+114.0,72.25
+120.000002,72.25
+					</series>
+					<series title="" type="l" color="0x88ff12" encoding="csv">0.0,0.0
+0.0,16.7
+4.0,16.7
+4.0,51.7
+14.0,51.7
+14.0,53.33
+24.0,53.33
+24.0,100.02
+34.0,100.02
+34.0,83.34
+44.0,83.34
+44.0,99.98
+54.0,99.98
+54.0,150.0
+64.0,150.0
+64.0,166.66
+74.0,166.66
+74.0,141.66
+84.0,141.66
+84.0,99.98
+94.0,99.98
+94.0,91.64
+104.0,91.64
+104.0,66.67999999999999
+114.0,66.67999999999999
+114.0,72.25
+120.000002,72.25
+					</series>
+					<series title="" type="l" color="0x8dff1b" encoding="csv">0.0,0.0
+0.0,16.7
+4.0,16.7
+4.0,51.7
+14.0,51.7
+14.0,53.33
+24.0,53.33
+24.0,100.02
+34.0,100.02
+34.0,83.34
+44.0,83.34
+44.0,99.98
+54.0,99.98
+54.0,150.0
+64.0,150.0
+64.0,166.66
+74.0,166.66
+74.0,141.66
+84.0,141.66
+84.0,99.98
+94.0,99.98
+94.0,91.64
+104.0,91.64
+104.0,66.67999999999999
+114.0,66.67999999999999
+114.0,72.25
+120.000002,72.25
+					</series>
+					<series title="" type="l" color="0x91ff24" encoding="csv">0.0,0.0
+0.0,16.7
+4.0,16.7
+4.0,51.7
+14.0,51.7
+14.0,53.33
+24.0,53.33
+24.0,100.02
+34.0,100.02
+34.0,83.34
+44.0,83.34
+44.0,99.98
+54.0,99.98
+54.0,150.0
+64.0,150.0
+64.0,166.66
+74.0,166.66
+74.0,141.66
+84.0,141.66
+84.0,99.98
+94.0,99.98
+94.0,91.64
+104.0,91.64
+104.0,66.67999999999999
+114.0,66.67999999999999
+114.0,72.25
+120.000002,72.25
+					</series>
+					<series title="" type="l" color="0x96ff2d" encoding="csv">0.0,0.0
+0.0,16.7
+4.0,16.7
+4.0,51.7
+14.0,51.7
+14.0,53.33
+24.0,53.33
+24.0,100.02
+34.0,100.02
+34.0,83.34
+44.0,83.34
+44.0,99.98
+54.0,99.98
+54.0,150.0
+64.0,150.0
+64.0,166.66
+74.0,166.66
+74.0,141.66
+84.0,141.66
+84.0,99.98
+94.0,99.98
+94.0,91.64
+104.0,91.64
+104.0,66.67999999999999
+114.0,66.67999999999999
+114.0,72.25
+120.000002,72.25
+					</series>
+					<series title="" type="l" color="0x9aff36" encoding="csv">0.0,0.0
+0.0,16.7
+4.0,16.7
+4.0,51.7
+14.0,51.7
+14.0,53.33
+24.0,53.33
+24.0,100.02
+34.0,100.02
+34.0,83.34
+44.0,83.34
+44.0,99.98
+54.0,99.98
+54.0,150.0
+64.0,150.0
+64.0,166.66
+74.0,166.66
+74.0,141.66
+84.0,141.66
+84.0,99.98
+94.0,99.98
+94.0,91.64
+104.0,91.64
+104.0,66.67999999999999
+114.0,66.67999999999999
+114.0,72.25
+120.000002,72.25
+					</series>
+					<series title="" type="l" color="0x9fff3e" encoding="csv">0.0,0.0
+0.0,16.7
+4.0,16.7
+4.0,51.7
+14.0,51.7
+14.0,53.33
+24.0,53.33
+24.0,100.02
+34.0,100.02
+34.0,83.34
+44.0,83.34
+44.0,99.98
+54.0,99.98
+54.0,150.0
+64.0,150.0
+64.0,166.66
+74.0,166.66
+74.0,141.66
+84.0,141.66
+84.0,99.98
+94.0,99.98
+94.0,91.64
+104.0,91.64
+104.0,66.67999999999999
+114.0,66.67999999999999
+114.0,72.25
+120.000002,72.25
+					</series>
+					<series title="" type="l" color="0xa3ff47" encoding="csv">0.0,0.0
+0.0,16.7
+4.0,16.7
+4.0,51.7
+14.0,51.7
+14.0,53.33
+24.0,53.33
+24.0,100.02
+34.0,100.02
+34.0,83.34
+44.0,83.34
+44.0,99.98
+54.0,99.98
+54.0,150.0
+64.0,150.0
+64.0,166.66
+74.0,166.66
+74.0,141.66
+84.0,141.66
+84.0,99.98
+94.0,99.98
+94.0,91.64
+104.0,91.64
+104.0,66.67999999999999
+114.0,66.67999999999999
+114.0,72.25
+120.000002,72.25
+					</series>
+					<series title="" type="l" color="0xa8ff50" encoding="csv">0.0,0.0
+0.0,16.7
+4.0,16.7
+4.0,51.7
+14.0,51.7
+14.0,53.33
+24.0,53.33
+24.0,100.02
+34.0,100.02
+34.0,83.34
+44.0,83.34
+44.0,99.98
+54.0,99.98
+54.0,150.0
+64.0,150.0
+64.0,166.66
+74.0,166.66
+74.0,141.66
+84.0,141.66
+84.0,99.98
+94.0,99.98
+94.0,91.64
+104.0,91.64
+104.0,66.67999999999999
+114.0,66.67999999999999
+114.0,72.25
+120.000002,72.25
+					</series>
+					<series title="850" type="l" color="0x00ffff" encoding="csv">0.0,850.0
+120.000002,850.0
+					</series>
+					<series title="" type="l" color="0x09ffff" encoding="csv">0.0,850.0
+120.000002,850.0
+					</series>
+					<series title="" type="l" color="0x12ffff" encoding="csv">0.0,850.0
+120.000002,850.0
+					</series>
+					<series title="" type="l" color="0x1bffff" encoding="csv">0.0,850.0
+120.000002,850.0
+					</series>
+					<series title="" type="l" color="0x24ffff" encoding="csv">0.0,850.0
+120.000002,850.0
+					</series>
+					<series title="" type="l" color="0x2dffff" encoding="csv">0.0,850.0
+120.000002,850.0
+					</series>
+					<series title="" type="l" color="0x36ffff" encoding="csv">0.0,850.0
+120.000002,850.0
+					</series>
+					<series title="" type="l" color="0x3effff" encoding="csv">0.0,850.0
+120.000002,850.0
+					</series>
+					<series title="" type="l" color="0x47ffff" encoding="csv">0.0,850.0
+120.000002,850.0
+					</series>
+					<series title="" type="l" color="0x50ffff" encoding="csv">0.0,850.0
+120.000002,850.0
+					</series>
+					<series title="300 * PumpSpeed[PumpSetting]" type="l" color="0x8000ff" encoding="csv">0.0,0.0
+0.0,300.0
+120.0,300.0
+120.000002,126.92307692307692
+					</series>
+					<series title="" type="l" color="0x8409ff" encoding="csv">0.0,0.0
+0.0,300.0
+120.0,300.0
+120.000002,126.92307692307692
+					</series>
+					<series title="" type="l" color="0x8812ff" encoding="csv">0.0,0.0
+0.0,300.0
+120.0,300.0
+120.000002,57.69230769230769
+					</series>
+					<series title="" type="l" color="0x8d1bff" encoding="csv">0.0,0.0
+0.0,300.0
+120.0,300.0
+120.000002,57.69230769230769
+					</series>
+					<series title="" type="l" color="0x9124ff" encoding="csv">0.0,0.0
+0.0,300.0
+120.000002,300.0
+					</series>
+					<series title="" type="l" color="0x962dff" encoding="csv">0.0,0.0
+0.0,300.0
+120.0,300.0
+120.000002,126.92307692307692
+					</series>
+					<series title="" type="l" color="0x9a36ff" encoding="csv">0.0,0.0
+0.0,300.0
+120.0,300.0
+120.000002,126.92307692307692
+					</series>
+					<series title="" type="l" color="0x9f3eff" encoding="csv">0.0,0.0
+0.0,300.0
+120.0,300.0
+120.000002,57.69230769230769
+					</series>
+					<series title="" type="l" color="0xa347ff" encoding="csv">0.0,0.0
+0.0,300.0
+120.0,300.0
+120.000002,126.92307692307692
+					</series>
+					<series title="" type="l" color="0xa850ff" encoding="csv">0.0,0.0
+0.0,300.0
+120.0,300.0
+120.000002,57.69230769230769
+					</series>
+					<comment/>
+				</plot>
+			</result>
 		</query>
 	</queries>
 </nta>

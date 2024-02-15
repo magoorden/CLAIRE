@@ -1,0 +1,1 @@
+verifyta5 -qs -D 0.03 --good-runs 100 --total-runs 200 --runs-pr-state 100 --eval-runs 100

@@ -92,8 +92,8 @@ OF1              0          FIXED      0.3              NO
 [STORAGE]
 ;;Name           Elev.    MaxDepth   InitDepth  Shape      Curve Name/Params            N/A      Fevap    Psi      Ksat     IMD     
 ;;-------------- -------- ---------- ----------- ---------- ---------------------------- -------- --------          -------- --------
-SU1              6.75     2          0.0        TABULAR    storage_curve1               0        0
-SU2              6        2          0.0        TABULAR    storage_curve2               0        0
+SU1              6.75     0.65       0.0        TABULAR    storage_curve1               0        0
+SU2              6        0.65       0.0        TABULAR    storage_curve2               0        0
 SU3              5.5      2          0.3        TABULAR    storage_curve3               0        0       
 
 [CONDUITS]
@@ -164,15 +164,15 @@ discharge_curve3            1.2        0.008182
 discharge_curve3            1.3        0.009091  
 discharge_curve3            1.4        0.01      
 ;
-storage_curve1   Storage    2          2250      
+storage_curve1   Storage    0.65       5.66
 ;
-storage_curve2   Storage    2          2250
+storage_curve2   Storage    0.65       5.66
 ;
 storage_curve3   Storage    1.355      1550      
 ;
-catchment_storage1 Storage    0.1        200000    
+catchment_storage1 Storage    0.1        171
 ;
-catchment_storage2 Storage    0.1        200000
+catchment_storage2 Storage    0.1        171
 ;
 catchment_storage3 Storage    0.01       100000    
 
