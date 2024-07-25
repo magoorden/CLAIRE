@@ -1,0 +1,15 @@
+
+Verifying formula 1 at query.q:1
+ -- Formula is satisfied.
+(1500 runs)
+Learning statistics for best strategy: 
+	Number of resets: 0
+	Number of iterations in last reset: 1
+	Number of iterations in total: 1
+
+
+
+Verifying formula 2 at query.q:3
+ -- Formula is satisfied.
+PumpSetting:
+[0]: (0,0) (4.000002,0)
