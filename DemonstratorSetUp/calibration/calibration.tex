@@ -1,0 +1,160 @@
+\documentclass[notheorems,aspectratio=169]{beamer}
+\usetheme[compress]{Singapore}
+\setbeamertemplate{footline}[frame number]
+\usenavigationsymbolstemplate{}
+% \usepackage{beamerthemesplit} // Activate for custom appearance
+
+\title{Demonstrator setup - calibration experiment}
+\subtitle{Experiment design and results}
+%\author{Martijn Goorden}
+\date{\today}
+
+%\usepackage{etex} % Resolves dim error with pgfplots
+\usepackage{subcaption}
+\usepackage{appendixnumberbeamer}
+\usepackage{relsize}
+\usepackage{array}
+\usepackage{multicol}
+\usepackage{tabu}
+\usepackage{bm} % Bold math
+\usepackage{dsfont} % provides the blackboard 1.
+%\usepackage{tikz}
+%\usetikzlibrary{positioning}
+%\usetikzlibrary{arrows}
+%\usetikzlibrary{backgrounds}
+%\usetikzlibrary{calc}
+%\usetikzlibrary{decorations.pathmorphing}
+%\usetikzlibrary{shapes}
+%\usetikzlibrary{automata}
+\usepackage{pgfplots} % makes plotting data easier
+\pgfplotsset{compat=1.18}
+\usepgfplotslibrary{dateplot}
+\usepgfplotslibrary{external} % expert graphs as pdf or eps for faster building
+\tikzexternalize[prefix=tikz/]% activate the externalization.
+
+\hypersetup{pdfpagemode=UseNone} % opens pdf without any toolbar open
+
+%\usepackage{showframe} % show frame boundaries
+
+\begin{document}
+%
+\begin{frame}
+	\titlepage
+\end{frame}
+%
+
+\begin{frame}{Experiment design}
+	\small
+	\begin{itemize}
+		\item Script \texttt{calibration.py}.
+		\item Duties from $\{10,20,\ldots,100\}$.
+		\item Each duty-tube-flow direction combination tested 5 times.
+		\item Water levels changed between $<250$ mm and $>500$ mm.
+	\end{itemize}
+\end{frame}
+	
+\begin{frame}{Experimental results - inflow}
+	\centering
+	\begin{tikzpicture}
+		% To plot figure with multiple ordinates, see section 4.9.11 of the pgfplot manual.
+		pgfplotsset{set layers}
+		\begin{axis}[
+			scale only axis,
+			xlabel={Duty [-]},
+			ylabel={Flow rate [mm/s]},
+			xmin=0, xmax=100,
+			ymin=0, ymax=11,
+			axis y line*=left,  %'*' avoids arrow heads
+			axis x line*=bottom, %'*' avoids arrow heads
+			width=12cm,
+			height=5cm,
+%			xtick distance=360,
+			xmajorgrids=true,
+			ymajorgrids=true,
+			grid style=dashed,
+			yticklabel style={
+				/pgf/number format/precision=0,
+				/pgf/number format/fixed,
+				/pgf/number format/fixed zerofill,
+			},
+			legend style={
+			at={(0.5,0.1)},
+			anchor=south},
+			nodes={scale=1, transform shape}
+			]	
+			
+			
+			\addplot+[
+			only marks,
+			mark size=2pt,
+			mark=x,
+			color=blue,
+			]
+			table[x index = 5,y index = 4, col sep=comma]{data/calibration_data_tube1_inflow.csv};
+			\addlegendentry{Tube 1 inflow}
+			
+			\addplot+[
+			only marks,
+			mark size=2pt,
+			mark=x,
+			color=red,
+			]
+			table[x index = 5,y index = 4, col sep=comma]{data/calibration_data_tube2_inflow.csv};
+			\addlegendentry{Tube 2 inflow}
+		\end{axis}
+	\end{tikzpicture}
+\end{frame}
+
+\begin{frame}{Experimental results - outflow}
+	\centering
+	\begin{tikzpicture}
+		% To plot figure with multiple ordinates, see section 4.9.11 of the pgfplot manual.
+		pgfplotsset{set layers}
+		\begin{axis}[
+			scale only axis,
+			xlabel={Duty [-]},
+			ylabel={Flow rate [mm/s]},
+			xmin=0, xmax=100,
+			ymin=0, ymax=11,
+			axis y line*=left,  %'*' avoids arrow heads
+			axis x line*=bottom, %'*' avoids arrow heads
+			width=12cm,
+			height=5cm,
+			%			xtick distance=360,
+			xmajorgrids=true,
+			ymajorgrids=true,
+			grid style=dashed,
+			yticklabel style={
+				/pgf/number format/precision=0,
+				/pgf/number format/fixed,
+				/pgf/number format/fixed zerofill,
+			},
+			legend style={
+				at={(0.5,0.1)},
+				anchor=south},
+			nodes={scale=1, transform shape}
+			]	
+			
+			
+			\addplot+[
+			only marks,
+			mark size=2pt,
+			mark=x,
+			color=blue,
+			]
+			table[x index = 5,y expr=\thisrowno{4} * -1, col sep=comma]{data/calibration_data_tube1_outflow.csv};
+			\addlegendentry{Tube 1 outflow}
+			
+			\addplot+[
+			only marks,
+			mark size=2pt,
+			mark=x,
+			color=red,
+			]
+			table[x index = 5,y expr=\thisrowno{4} * -1, col sep=comma]{data/calibration_data_tube2_outflow.csv};
+			\addlegendentry{Tube 2 outflow}
+		\end{axis}
+	\end{tikzpicture}
+\end{frame}
+
+\end{document}
