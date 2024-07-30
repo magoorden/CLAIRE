@@ -190,8 +190,8 @@ class ClaireDevice:
                 # If we received a line starting with {, we have received the new state.
                 break
 
-            sleep(0.1)
-            total_wait += 0.1
+            sleep(0.05)
+            total_wait += 0.05
             if total_wait > COMMUNICATION_TIMEOUT:
                 raise RuntimeError("Waiting too long for state to be communicated.")
 
@@ -230,7 +230,7 @@ class ClaireDevice:
         if DEBUG:
             print(f'{TAG} Writing command: {data}')
         self.ser.write(data.encode('utf-8'))
-        sleep(0.1)  # Sleep slightly to take communication delays into account
+        sleep(0.05)  # Sleep slightly to take communication delays into account
 
     def close(self):
         """Close the serial connection."""
